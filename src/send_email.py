@@ -10,11 +10,12 @@ load_dotenv()
 gmail_user = os.getenv("GMAIL_USER")
 gmail_app_password = os.getenv("GMAIL_APP_PASSWORD")
 
+
 def enviar_email(server, destinatario, token):
 
     msg = MIMEMultipart("alternative")
 
-    msg["Subject"] = "Teste de email com tracking"
+    msg["Subject"] = "Teste de email com tracking e confirmação"
     msg["From"] = gmail_user
     msg["To"] = destinatario
 
@@ -45,41 +46,28 @@ def enviar_email(server, destinatario, token):
 
     server.login(gmail_user, gmail_app_password)
 
-    server.sendmail(
-        gmail_user,
-        destinatario,
-        msg.as_string()
-    )
+    server.sendmail(gmail_user, destinatario, msg.as_string())
 
     server.quit()
 
     print("Email enviado com sucesso!")
 
+
 def main():
     parser = argparse.ArgumentParser(description="Envio de email com tracking")
 
     parser.add_argument(
-        "-server",
-        required=True,
-        help="URL do servidor (e.g. https://dominio.com)"
+        "-server", required=True, help="URL do servidor (e.g. https://dominio.com)"
     )
 
-    parser.add_argument(
-        "-recipient",
-        required=True,
-        help="Email do destinatário"
-    )
+    parser.add_argument("-recipient", required=True, help="Email do destinatário")
 
-    parser.add_argument(
-        "-token",
-        required=True,
-        help="Token de tracking"
-    )
+    parser.add_argument("-token", required=True, help="Token de tracking")
 
     args = parser.parse_args()
 
     enviar_email(args.server, args.recipient, args.token)
-    
+
 
 if __name__ == "__main__":
     main()
