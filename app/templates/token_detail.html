@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}{{ token_row.name }} · Email Tracker{% endblock %}
+{% block content %}
+    <p class="back-link"><a href="/">← todos os tokens</a></p>
+
+    <h1>{{ token_row.name }}</h1>
+    <span class="badge badge-{{ usage_status }}">{{ usage_status }}</span>
+
+    <table class="kv">
+        <tr><th>token</th><td class="mono">{{ token_row.token }}</td></tr>
+        <tr><th>destinatário</th><td>{{ token_row.recipient_email or "—" }}</td></tr>
+        <tr><th>alerta para</th><td>{{ token_row.alert_email }}</td></tr>
+        <tr><th>criado em</th><td class="mono">{{ token_row.created_at }}</td></tr>
+        <tr><th>confirmado em</th><td class="mono">{{ token_row.confirmed_at or "—" }}</td></tr>
+    </table>
+
+    <section class="panel">
+        <h2>Aberturas registradas ({{ opens|length }})</h2>
+        <p class="hint">
+            O tempo desde o envio ajuda a distinguir leitura humana de prefetch automático
+            (proxy de imagem, antivírus). Aberturas muito rápidas (poucos segundos) costumam
+            ser prefetch; confirme só quando fizer sentido.
+        </p>
+
+        {% if opens|length == 0 %}
+            <p class="empty-state">Nenhuma abertura registrada ainda.</p>
+        {% else %}
+        <table class="ledger log">
+            <thead>
+                <tr>
+                    <th>abertura (UTC)</th>
+                    <th>desde o envio</th>
+                    <th>ip</th>
+                    <th>user-agent</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for o in opens %}
+                <tr>
+                    <td class="mono">{{ o.opened_at }}</td>
+                    <td class="mono {{ 'suspect' if o.seconds_since_created < 60 else '' }}">
+                        +{{ "%.1f"|format(o.seconds_since_created) }}s
+                        {% if o.seconds_since_created < 60 %}<span class="suspect-tag">rápido demais?</span>{% endif %}
+                    </td>
+                    <td class="mono">{{ o.ip or "—" }}</td>
+                    <td class="mono ua">{{ o.user_agent or "—" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        {% if token_row.confirmed_at %}
+            <p class="confirmed-note">✓ Confirmado como lido em {{ token_row.confirmed_at }}.</p>
+        {% elif opens|length > 0 %}
+            <form method="post" action="/ui/tokens/{{ token_row.token }}/confirm">
+                <button type="submit" class="btn btn-primary">Confirmar leitura e alertar</button>
+            </form>
+        {% endif %}
+    </section>
+
+    <section class="panel">
+        <h2>Envio de email</h2>
+        {% if emails|length == 0 %}
+            <p class="empty-state">Nenhum envio registrado para este token ainda.</p>
+        {% else %}
+        <table class="ledger">
+            <thead>
+                <tr><th>status</th><th>assunto</th><th>criado em</th><th>enviado em</th><th>anexos</th></tr>
+            </thead>
+            <tbody>
+                {% for e in emails %}
+                <tr>
+                    <td><span class="badge badge-email-{{ e.status }}">{{ e.status }}</span></td>
+                    <td>{{ e.subject }}{% if e.error_message %}<div class="error-msg">{{ e.error_message }}</div>{% endif %}</td>
+                    <td class="mono">{{ e.created_at }}</td>
+                    <td class="mono">{{ e.sent_at or "—" }}</td>
+                    <td>{{ e.attachment_filenames|join(", ") or "—" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        {% if usage_status == "unused" %}
+            <a class="btn btn-primary" href="/ui/send/{{ token_row.token }}">Enviar email de teste</a>
+        {% endif %}
+    </section>
+
+    <section class="panel">
+        <h2>Uso externo</h2>
+        {% if token_row.external_use_marked_at %}
+            <p>Marcado como usado externamente em <span class="mono">{{ token_row.external_use_marked_at }}</span>.</p>
+            {% if token_row.external_use_note %}<p class="hint">Observação: {{ token_row.external_use_note }}</p>{% endif %}
+            <form method="post" action="/ui/tokens/{{ token_row.token }}/unmark_external">
+                <button type="submit" class="btn btn-secondary">Desmarcar</button>
+            </form>
+        {% else %}
+            <p class="hint">Use isto se este token foi enviado por fora do sistema (ex: já foi mandado manualmente
+                antes desta ferramenta existir). Bloqueia o uso futuro de "enviar email de teste".</p>
+            <form method="post" action="/ui/tokens/{{ token_row.token }}/mark_external">
+                <input type="text" name="note" placeholder="observação (opcional)" />
+                <button type="submit" class="btn btn-secondary">Marcar como usado externamente</button>
+            </form>
+        {% endif %}
+    </section>
+{% endblock %}

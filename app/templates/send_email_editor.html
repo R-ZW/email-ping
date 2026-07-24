@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Enviar email · {{ token_row.name }}{% endblock %}
+{% block content %}
+    <p class="back-link"><a href="/ui/tokens/{{ token_row.token }}">← voltar ao token</a></p>
+    <h1>Enviar email de teste</h1>
+    <p class="hint">Destinatário: <strong>{{ token_row.recipient_email or "nenhum cadastrado" }}</strong> ·
+        token <span class="mono">{{ token_row.token }}</span>. O pixel de rastreamento é adicionado
+        automaticamente ao HTML antes do envio.</p>
+
+    {% if blocked_reason %}
+        <p class="error-msg">{{ blocked_reason }}</p>
+    {% else %}
+    <form method="post" action="/ui/send/{{ token_row.token }}" enctype="multipart/form-data" class="form">
+        <label>
+            Assunto
+            <input type="text" name="subject" required placeholder="Assunto do email" />
+        </label>
+
+        <label>
+            Corpo (HTML)
+            <textarea id="body_html" name="body_html" rows="12" required
+                placeholder="&lt;p&gt;Olá!&lt;/p&gt;"></textarea>
+        </label>
+
+        <label>
+            Anexos (opcional)
+            <input type="file" name="files" multiple />
+        </label>
+
+        <div class="editor-grid">
+            <div>
+                <h3>Preview</h3>
+                <iframe id="preview" class="preview-frame" title="preview do email"></iframe>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Enviar email</button>
+    </form>
+
+    <script>
+        const textarea = document.getElementById("body_html");
+        const preview = document.getElementById("preview");
+
+        function updatePreview() {
+            preview.srcdoc = textarea.value;
+        }
+
+        textarea.addEventListener("input", updatePreview);
+        updatePreview();
+    </script>
+    {% endif %}
+{% endblock %}

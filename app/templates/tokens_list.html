@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Tokens · Email Tracker{% endblock %}
+{% block content %}
+    <h1>Tokens</h1>
+
+    {% if tokens|length == 0 %}
+        <p class="empty-state">Nenhum token criado ainda. <a href="/ui/new">Criar o primeiro</a>.</p>
+    {% else %}
+    <table class="ledger">
+        <thead>
+            <tr>
+                <th>status</th>
+                <th>nome</th>
+                <th>destinatário</th>
+                <th>criado em</th>
+                <th>token</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in tokens %}
+            <tr>
+                <td><span class="badge badge-{{ t['usage_status'] }}">{{ t['usage_status'] }}</span></td>
+                <td><a href="/ui/tokens/{{ t['token'] }}">{{ t['name'] }}</a></td>
+                <td>{{ t['recipient_email'] or '—' }}</td>
+                <td class="mono">{{ t['created_at'] }}</td>
+                <td class="mono truncate">{{ t['token'] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+{% endblock %}

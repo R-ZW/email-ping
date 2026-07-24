@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Novo token · Email Tracker{% endblock %}
+{% block content %}
+    <p class="back-link"><a href="/">← todos os tokens</a></p>
+    <h1>Novo token de rastreamento</h1>
+
+    <form method="post" action="/ui/new" class="form">
+        <label>
+            Nome (identificação interna do email)
+            <input type="text" name="name" required placeholder="Ex: Aviso 45 dias - Empresa X" />
+        </label>
+        <label>
+            Email do destinatário
+            <input type="email" name="recipient_email" placeholder="empresa@exemplo.com" />
+        </label>
+        <label>
+            Email para receber o alerta de confirmação (opcional, padrão: GMAIL_USER)
+            <input type="email" name="alert_email" placeholder="equipe@instituto.gov.br" />
+        </label>
+        <button type="submit" class="btn btn-primary">Criar token</button>
+    </form>
+{% endblock %}
