@@ -1,6 +1,8 @@
 import sqlite3
 import uuid
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
+
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -38,7 +40,7 @@ def create_tracking(
     isso é responsabilidade do /send_email, chamado depois (por este sistema ou por
     qualquer automação externa que já tenha um token em mãos)."""
     token = str(uuid.uuid4())
-    created_at = datetime.now(timezone.utc).isoformat()
+    created_at = datetime.now(ZoneInfo("America/Sao_Paulo")).isoformat()
     resolved_alert_email = alert_email or GMAIL_USER
 
     if not resolved_alert_email:
@@ -106,7 +108,7 @@ def mark_external(
             detail=f"Token '{token}' já teve um email enviado com sucesso via /send_email.",
         )
 
-    marked_at = datetime.now(timezone.utc).isoformat()
+    marked_at = datetime.now(ZoneInfo("America/Sao_Paulo")).isoformat()
     conn.execute(
         "UPDATE tokens SET external_use_marked_at = ?, external_use_note = ? WHERE token = ?",
         (marked_at, body.note, token),
@@ -131,6 +133,8 @@ def unmark_external(token: str, conn: sqlite3.Connection = Depends(get_connectio
     )
     conn.commit()
 
-    usage_status = "sent" if token_status.has_sent_email(conn, token_row.id) else "unused"
+    usage_status = (
+        "sent" if token_status.has_sent_email(conn, token_row.id) else "unused"
+    )
     row = conn.execute("SELECT * FROM tokens WHERE token = ?", (token,)).fetchone()
     return _row_to_token_out(row, usage_status)

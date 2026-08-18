@@ -7,15 +7,15 @@
     <form method="post" action="/ui/new" class="form">
         <label>
             Nome (identificação interna do email)
-            <input type="text" name="name" required placeholder="Ex: Aviso 45 dias - Empresa X" />
+            <input type="text" name="name" required />
         </label>
         <label>
             Email do destinatário
-            <input type="email" name="recipient_email" placeholder="empresa@exemplo.com" />
+            <input type="email" name="recipient_email" />
         </label>
         <label>
             Email para receber o alerta de confirmação (opcional, padrão: GMAIL_USER)
-            <input type="email" name="alert_email" placeholder="equipe@instituto.gov.br" />
+            <input type="email" name="alert_email" />
         </label>
         <button type="submit" class="btn btn-primary">Criar token</button>
     </form>

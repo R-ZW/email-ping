@@ -27,7 +27,7 @@ class OpenOut(BaseModel):
     opened_at: str
     ip: Optional[str]
     user_agent: Optional[str]
-    seconds_since_created: Optional[float]
+    seconds_since_sent: Optional[float]
 
 
 class OpensListOut(BaseModel):

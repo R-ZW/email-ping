@@ -90,7 +90,9 @@ def send_open_confirmation(
     _ensure_configured()
 
     linha_destinatario = (
-        f"<li><b>Destinatário original:</b> {recipient_email}</li>" if recipient_email else ""
+        f"<li><b>Destinatário original:</b> {recipient_email}</li>"
+        if recipient_email
+        else ""
     )
 
     html_body = f"""
@@ -100,7 +102,7 @@ def send_open_confirmation(
         <ul>
           {linha_destinatario}
           <li><b>Token:</b> {token}</li>
-          <li><b>Horário da abertura confirmada (UTC):</b> {opened_at}</li>
+          <li><b>Horário da abertura confirmada (GMT-3):</b> {opened_at}</li>
           <li><b>IP:</b> {ip or "desconhecido"}</li>
           <li><b>User-Agent:</b> {user_agent or "desconhecido"}</li>
         </ul>

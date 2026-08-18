@@ -1,5 +1,6 @@
 import sqlite3
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
@@ -42,7 +43,7 @@ def send_email(
             detail=f"Token '{token}' não tem recipient_email cadastrado; não é possível enviar.",
         )
 
-    created_at = datetime.now(timezone.utc).isoformat()
+    created_at = datetime.now(ZoneInfo("America/Sao_Paulo")).isoformat()
     cursor = conn.execute(
         """
         INSERT INTO emails(token_id, subject, body_html, status, created_at)
@@ -87,9 +88,11 @@ def send_email(
             (str(exc), email_id),
         )
         conn.commit()
-        raise HTTPException(status_code=502, detail=f"Falha ao enviar email: {exc}") from exc
+        raise HTTPException(
+            status_code=502, detail=f"Falha ao enviar email: {exc}"
+        ) from exc
 
-    sent_at = datetime.now(timezone.utc).isoformat()
+    sent_at = datetime.now(ZoneInfo("America/Sao_Paulo")).isoformat()
     conn.execute(
         "UPDATE emails SET status = 'sent', sent_at = ? WHERE id = ?",
         (sent_at, email_id),
@@ -120,7 +123,7 @@ def get_opens(token: str, conn: sqlite3.Connection = Depends(get_connection)):
             opened_at=o.opened_at,
             ip=o.ip,
             user_agent=o.user_agent,
-            seconds_since_created=o.seconds_since_created,
+            seconds_since_sent=o.seconds_since_sent,
         )
         for o in list_opens_for_token(conn, token_row)
     ]
@@ -155,7 +158,7 @@ def confirm_open(token: str, conn: sqlite3.Connection = Depends(get_connection))
             detail=f"Token '{token}' ainda não tem nenhuma abertura registrada.",
         )
 
-    confirmed_at = datetime.now(timezone.utc).isoformat()
+    confirmed_at = datetime.now(ZoneInfo("America/Sao_Paulo")).isoformat()
 
     try:
         mailer.send_open_confirmation(
@@ -168,9 +171,13 @@ def confirm_open(token: str, conn: sqlite3.Connection = Depends(get_connection))
             recipient_email=token_row.recipient_email,
         )
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Falha ao enviar confirmação: {exc}") from exc
+        raise HTTPException(
+            status_code=502, detail=f"Falha ao enviar confirmação: {exc}"
+        ) from exc
 
-    conn.execute("UPDATE tokens SET confirmed_at = ? WHERE token = ?", (confirmed_at, token))
+    conn.execute(
+        "UPDATE tokens SET confirmed_at = ? WHERE token = ?", (confirmed_at, token)
+    )
     conn.commit()
 
     return {"token": token, "confirmed_at": confirmed_at}

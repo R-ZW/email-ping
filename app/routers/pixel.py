@@ -1,5 +1,6 @@
 import sqlite3
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Request, Response
 
@@ -15,7 +16,9 @@ _NO_CACHE_HEADERS = {
 
 
 @router.get("/pixel/{token}")
-def pixel(token: str, request: Request, conn: sqlite3.Connection = Depends(get_connection)):
+def pixel(
+    token: str, request: Request, conn: sqlite3.Connection = Depends(get_connection)
+):
     """Registra uma abertura e retorna o PNG 1x1.
 
     Não decide mais nada sobre "é a Nª abertura" -- isso virou responsabilidade
@@ -23,14 +26,16 @@ def pixel(token: str, request: Request, conn: sqlite3.Connection = Depends(get_c
     Se o token não existir, a imagem ainda é retornada normalmente (o cliente de
     email não pode notar diferença), só não fica nada registrado no banco.
     """
-    token_row = conn.execute("SELECT id FROM tokens WHERE token = ?", (token,)).fetchone()
+    token_row = conn.execute(
+        "SELECT id FROM tokens WHERE token = ?", (token,)
+    ).fetchone()
 
     if token_row is not None:
         conn.execute(
             "INSERT INTO opens(token_id, opened_at, ip, user_agent) VALUES (?, ?, ?, ?)",
             (
                 token_row["id"],
-                datetime.now(timezone.utc).isoformat(),
+                datetime.now(ZoneInfo("America/Sao_Paulo")).isoformat(),
                 request.client.host if request.client else None,
                 request.headers.get("user-agent"),
             ),
