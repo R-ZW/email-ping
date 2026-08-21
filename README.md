@@ -13,4 +13,6 @@ source .venv/bin/activate
 ```powershell
 # pwd -> .../email-ping/
 uvicorn app.main:app --reload
+
+cloudflared tunnel --url http://localhost:8000
 ```

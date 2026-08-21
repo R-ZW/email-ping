@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Tokens · Email Tracker{% endblock %}
 {% block content %}
-    <h1>Tokens</h1>
+    <h1>Tokens <button type="button" onclick="window.location.reload()">Recarregar</button></h1>
 
     {% if tokens|length == 0 %}
         <p class="empty-state">Nenhum token criado ainda. <a href="/ui/new">Criar o primeiro</a>.</p>
@@ -14,6 +14,7 @@
                 <th>destinatário</th>
                 <th>criado em</th>
                 <th>token</th>
+                <th>operações</th>
             </tr>
         </thead>
         <tbody>
@@ -24,6 +25,12 @@
                 <td>{{ t['recipient_email'] or '—' }}</td>
                 <td class="mono">{{ t['created_at'] }}</td>
                 <td class="mono truncate">{{ t['token'] }}</td>
+                <td>
+                    <a href="/ui/tokens/{{ t['token'] }}/delete"
+                    onclick="return confirm('Tem certeza que deseja excluir este token? Esta ação não pode ser desfeita');">
+                        Excluir
+                    </a>
+                </td>
             </tr>
             {% endfor %}
         </tbody>

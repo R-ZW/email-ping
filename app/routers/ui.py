@@ -7,7 +7,12 @@ from fastapi.templating import Jinja2Templates
 from app.config import BASE_DIR
 from app.db import get_connection
 from app.routers.emails import confirm_open, send_email
-from app.routers.tokens import create_tracking, mark_external, unmark_external
+from app.routers.tokens import (
+    create_tracking,
+    mark_external,
+    unmark_external,
+    delete_token,
+)
 from app.schemas import MarkExternalRequest
 from app.services import token_status
 from app.services.emails_view import list_emails_for_token
@@ -18,11 +23,11 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "app" / "templates"))
 
 
 @router.get("/", response_class=HTMLResponse)
-def ui_tokens_list(request: Request, conn: sqlite3.Connection = Depends(get_connection)):
+def ui_tokens_list(
+    request: Request, conn: sqlite3.Connection = Depends(get_connection)
+):
     rows = token_status.list_tokens(conn)
-    return templates.TemplateResponse(
-        request, "tokens_list.html", {"tokens": rows}
-    )
+    return templates.TemplateResponse(request, "tokens_list.html", {"tokens": rows})
 
 
 @router.get("/ui/tokens/{token}", response_class=HTMLResponse)
@@ -70,6 +75,12 @@ def ui_mark_external(
 def ui_unmark_external(token: str, conn: sqlite3.Connection = Depends(get_connection)):
     unmark_external(token, conn)
     return RedirectResponse(url=f"/ui/tokens/{token}", status_code=303)
+
+
+@router.get("/ui/tokens/{token}/delete")
+def ui_delete_token(token: str, conn: sqlite3.Connection = Depends(get_connection)):
+    delete_token(token, conn)
+    return RedirectResponse(url="/", status_code=303)
 
 
 @router.get("/ui/new", response_class=HTMLResponse)
@@ -123,5 +134,7 @@ def ui_send_email_submit(
     files: list[UploadFile] = File(default=[]),
     conn: sqlite3.Connection = Depends(get_connection),
 ):
-    send_email(token=token, subject=subject, body_html=body_html, files=files, conn=conn)
+    send_email(
+        token=token, subject=subject, body_html=body_html, files=files, conn=conn
+    )
     return RedirectResponse(url=f"/ui/tokens/{token}", status_code=303)

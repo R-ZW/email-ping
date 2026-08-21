@@ -138,3 +138,37 @@ def unmark_external(token: str, conn: sqlite3.Connection = Depends(get_connectio
     )
     row = conn.execute("SELECT * FROM tokens WHERE token = ?", (token,)).fetchone()
     return _row_to_token_out(row, usage_status)
+
+
+@router.post("/tokens/{token}", response_model=TokenOut)
+def delete_token(token: str, conn: sqlite3.Connection = Depends(get_connection)):
+    """Exclui um token e todos os registros relacionados (aberturas, emails enviados)."""
+    try:
+        token_row = token_status.get_token_or_raise(conn, token)
+    except token_status.TokenNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    # Obter o status de uso antes de excluir
+    usage_status = (
+        "sent" if token_status.has_sent_email(conn, token_row.id) else "unused"
+    )
+
+    # Excluir registros relacionados
+    conn.execute("DELETE FROM opens WHERE token_id = ?", (token_row.id,))
+    conn.execute("DELETE FROM emails WHERE token_id = ?", (token_row.id,))
+    conn.execute("DELETE FROM tokens WHERE id = ?", (token_row.id,))
+    conn.commit()
+
+    return _row_to_token_out(
+        {
+            "token": token_row.token,
+            "name": token_row.name,
+            "recipient_email": token_row.recipient_email,
+            "alert_email": token_row.alert_email,
+            "created_at": token_row.created_at,
+            "confirmed_at": token_row.confirmed_at,
+            "external_use_marked_at": token_row.external_use_marked_at,
+            "external_use_note": token_row.external_use_note,
+        },
+        usage_status,
+    )
