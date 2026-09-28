@@ -312,6 +312,26 @@ def update_user(user_id: int, role: Role, is_active: bool) -> CurrentUser:
         conn.close()
 
 
+def update_own_username(
+    conn: sqlite3.Connection, user_id: int, username: str
+) -> CurrentUser:
+    """Atualiza somente o nome da própria conta dentro da transação atual."""
+    clean_username = username.strip()
+    if not clean_username or len(clean_username) > 80:
+        raise HTTPException(status_code=400, detail="Informe um nome de usuário de até 80 caracteres.")
+    try:
+        conn.execute(
+            "UPDATE users SET username=?, updated_at=? WHERE id=?",
+            (clean_username, now_iso(), user_id),
+        )
+        user = get_user(conn, user_id)
+        if user is None:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+        return user
+    except sqlite3.IntegrityError as exc:
+        raise HTTPException(status_code=409, detail="Nome de usuário já existe.") from exc
+
+
 def list_api_tokens() -> list[sqlite3.Row]:
     conn = get_connection()
     try:

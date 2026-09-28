@@ -16,17 +16,19 @@ from email.mime.text import MIMEText
 from pathlib import Path
 
 from app.config import GMAIL_APP_PASSWORD, GMAIL_USER, PUBLIC_BASE_URL
+from app.services.smtp_credentials import PersonalSMTPSettings
 
 
 class MailerNotConfiguredError(Exception):
     """GMAIL_USER / GMAIL_APP_PASSWORD ausentes no .env."""
 
 
-def _ensure_configured() -> None:
+def _default_sender() -> PersonalSMTPSettings:
     if not GMAIL_USER or not GMAIL_APP_PASSWORD:
         raise MailerNotConfiguredError(
             "GMAIL_USER/GMAIL_APP_PASSWORD não configurados no .env."
         )
+    return PersonalSMTPSettings(email=GMAIL_USER, app_password=GMAIL_APP_PASSWORD)
 
 
 def inject_tracking_pixel(body_html: str, token: str) -> str:
@@ -44,17 +46,18 @@ def send_email(
     subject: str,
     html_body: str,
     attachment_paths: list[Path] | None = None,
+    sender: PersonalSMTPSettings | None = None,
 ) -> None:
     """Envia um email HTML, com anexos opcionais, via Gmail SMTP.
 
     Levanta MailerNotConfiguredError ou exceções do smtplib -- quem chama
     (o router de /send_email) decide como registrar isso no banco (status='failed').
     """
-    _ensure_configured()
+    configured_sender = sender or _default_sender()
 
     msg = MIMEMultipart("mixed")
     msg["Subject"] = subject
-    msg["From"] = GMAIL_USER
+    msg["From"] = configured_sender.email
     msg["To"] = to_addr
 
     alt_part = MIMEMultipart("alternative")
@@ -69,8 +72,8 @@ def send_email(
 
     with smtplib.SMTP("smtp.gmail.com", 587) as server:
         server.starttls()
-        server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-        server.sendmail(GMAIL_USER, to_addr, msg.as_string())
+        server.login(configured_sender.email, configured_sender.app_password)
+        server.sendmail(configured_sender.email, to_addr, msg.as_string())
 
 
 def send_open_confirmation(
@@ -81,14 +84,13 @@ def send_open_confirmation(
     ip: str | None,
     user_agent: str | None,
     recipient_email: str | None,
+    sender: PersonalSMTPSettings | None = None,
 ) -> None:
     """Envia o email de 'confirmação de leitura' para quem deve ser avisado.
 
     Disparado manualmente (rota /confirm/{token}), não mais automaticamente
     a partir de uma contagem de aberturas.
     """
-    _ensure_configured()
-
     linha_destinatario = (
         f"<li><b>Destinatário original:</b> {recipient_email}</li>"
         if recipient_email
@@ -110,4 +112,4 @@ def send_open_confirmation(
     </html>
     """
 
-    send_email(alert_to, f"📬 Email confirmado como lido: {name}", html_body)
+    send_email(alert_to, f"📬 Email confirmado como lido: {name}", html_body, sender=sender)

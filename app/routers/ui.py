@@ -16,6 +16,7 @@ from app.routers.security import guard
 from app.services import token_status
 from app.services.emails_view import list_emails_for_token
 from app.services.opens_view import list_opens_for_token
+from app.services import smtp_credentials
 
 router = APIRouter(tags=["ui"])
 templates = Jinja2Templates(directory=str(BASE_DIR / "app" / "templates"))
@@ -42,6 +43,21 @@ templates.env.filters["human_datetime"] = human_datetime
 
 def ctx(request, user, **values):
     return {"current_user": user, "csrf_token": auth.csrf_token(request), **values}
+
+
+def account_response(request, user, conn, *, error: str | None = None, username: str | None = None, smtp_email: str | None = None, status_code: int = 200):
+    return templates.TemplateResponse(
+        request,
+        "account.html",
+        ctx(
+            request,
+            user,
+            personal_smtp_email=smtp_email if smtp_email is not None else smtp_credentials.get_personal_email(conn, user.id),
+            account_username=username if username is not None else user.username,
+            error=error,
+        ),
+        status_code=status_code,
+    )
 
 
 def audit(request, user, event, action, token):
@@ -80,6 +96,60 @@ def ui_tokens_list(request: Request, conn: sqlite3.Connection = Depends(connecti
     query_base = urlencode({"q": search, "status": usage_status, "per_page": per_page})
     page_numbers = range(max(1, page - 2), min(total_pages, page + 2) + 1)
     return templates.TemplateResponse(request, "tokens_list.html", ctx(request, user, tokens=rows, search=search, selected_status=usage_status, per_page=per_page, per_page_options=PER_PAGE_OPTIONS, page=page, total_pages=total_pages, total=total, query_base=query_base, page_numbers=page_numbers))
+
+
+@router.get("/ui/account", response_class=HTMLResponse)
+def account_page(request: Request, conn: sqlite3.Connection = Depends(connection_dependency)):
+    user = guard(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    return account_response(request, user, conn)
+
+
+@router.post("/ui/account")
+def update_account(
+    request: Request,
+    username: str = Form(...),
+    smtp_email: str = Form(""),
+    smtp_app_password: str = Form(""),
+    remove_smtp: str | None = Form(None),
+    csrf_token: str = Form(...),
+    conn: sqlite3.Connection = Depends(connection_dependency),
+):
+    user = guard(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    auth.verify_csrf(request, csrf_token)
+    clean_email = smtp_email.strip()
+    try:
+        updated_user = auth.update_own_username(conn, user.id, username)
+        event = "account_updated"
+        if remove_smtp == "on":
+            if smtp_credentials.remove_personal_settings(conn, user.id):
+                event = "personal_smtp_removed"
+        elif clean_email:
+            current_email = smtp_credentials.get_personal_email(conn, user.id)
+            password = smtp_app_password if smtp_app_password else ""
+            if not password and current_email != clean_email:
+                raise HTTPException(status_code=400, detail="Informe a senha de app para este e-mail.")
+            if password:
+                smtp_credentials.save_personal_settings(conn, user.id, clean_email, password)
+                event = "personal_smtp_updated"
+            elif current_email is None:
+                raise HTTPException(status_code=400, detail="Informe a senha de app do remetente.")
+        conn.commit()
+    except smtp_credentials.SMTPCredentialsConfigurationError as exc:
+        conn.rollback()
+        return account_response(request, user, conn, error=str(exc), username=username.strip(), smtp_email=clean_email, status_code=400)
+    except HTTPException as exc:
+        conn.rollback()
+        return account_response(request, user, conn, error=str(exc.detail), username=username.strip(), smtp_email=clean_email, status_code=exc.status_code)
+    request.state.authenticated_user = updated_user.username
+    audit_event(event, actor=updated_user.username, actor_role=updated_user.role,
+                client_ip=request.client.host if request.client else None, action="update_account",
+                target_type="user", target_id=updated_user.id,
+                request_id=getattr(request.state, "request_id", None))
+    return RedirectResponse("/ui/account", 303)
 
 
 @router.get("/ui/tokens/{token}", response_class=HTMLResponse)

@@ -48,6 +48,14 @@ CREATE TABLE IF NOT EXISTS api_tokens (
     revoked_at  TEXT
 );
 
+CREATE TABLE IF NOT EXISTS user_smtp_settings (
+    user_id             INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    smtp_email          TEXT NOT NULL,
+    app_password_cipher TEXT NOT NULL,
+    created_at          TEXT NOT NULL,
+    updated_at          TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_api_tokens_hash ON api_tokens(token_hash);
 
 CREATE TABLE IF NOT EXISTS emails (

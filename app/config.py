@@ -20,6 +20,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 GMAIL_USER = os.getenv("GMAIL_USER")
 GMAIL_APP_PASSWORD = os.getenv("GMAIL_APP_PASSWORD")
+SMTP_CREDENTIALS_KEY = os.getenv("SMTP_CREDENTIALS_KEY")
 
 # URL pública usada para montar o link do pixel embutido no email
 # (ex: http://localhost:8000/pixel/<token>)

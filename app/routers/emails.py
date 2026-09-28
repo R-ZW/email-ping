@@ -8,7 +8,7 @@ from app.auth import CurrentUser, authorize_token_management, require_api_user
 from app.db import connection_dependency
 from app.logging_config import audit_event
 from app.schemas import EmailOut, OpenOut, OpensListOut
-from app.services import mailer, token_status
+from app.services import mailer, smtp_credentials, token_status
 from app.services.attachments import save_attachments
 from app.services.opens_view import list_opens_for_token
 
@@ -86,6 +86,7 @@ def send_email(
             subject=subject,
             html_body=html_with_pixel,
             attachment_paths=[a.file_path for a in saved_attachments],
+            sender=smtp_credentials.get_personal_settings(conn, actor.id),
         )
     except Exception as exc:
         conn.execute(
@@ -180,6 +181,7 @@ def confirm_open(token: str, request: Request, actor: CurrentUser = Depends(requ
             ip=last_open["ip"],
             user_agent=last_open["user_agent"],
             recipient_email=token_row.recipient_email,
+            sender=smtp_credentials.get_personal_settings(conn, actor.id),
         )
     except Exception as exc:
         raise HTTPException(

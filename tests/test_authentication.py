@@ -14,6 +14,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import httpx
+from cryptography.fernet import Fernet
 from pwdlib import PasswordHash
 
 
@@ -30,6 +31,7 @@ class AuthenticationTests(unittest.TestCase):
             "BOOTSTRAP_ADMIN_USERNAME": "admin",
             "BOOTSTRAP_ADMIN_PASSWORD_HASH": PasswordHash.recommended().hash("admin-password"),
             "GMAIL_USER": "alerts@example.test",
+            "SMTP_CREDENTIALS_KEY": Fernet.generate_key().decode("ascii"),
         })
 
         import app.auth as auth
@@ -41,11 +43,15 @@ class AuthenticationTests(unittest.TestCase):
         import app.routers.security as security
         import app.routers.tokens as tokens
         import app.routers.ui as ui
+        import app.services.mailer as mailer
+        import app.services.smtp_credentials as smtp_credentials
 
         self.config = importlib.reload(config)
         self.db = importlib.reload(db)
         self.logging_config = importlib.reload(logging_config)
         self.auth = importlib.reload(auth)
+        self.smtp_credentials = importlib.reload(smtp_credentials)
+        importlib.reload(mailer)
         importlib.reload(tokens)
         importlib.reload(emails)
         importlib.reload(security)
@@ -107,6 +113,55 @@ class AuthenticationTests(unittest.TestCase):
                 self.assertEqual((await client.get("/")).status_code, 200)
                 self.auth.update_user(self.user_id("session-user"), "tecnico", True)
                 self.assertEqual((await client.get("/", follow_redirects=False)).status_code, 303)
+
+        asyncio.run(scenario())
+
+    def test_account_can_update_name_and_personal_smtp_settings(self):
+        self.auth.create_user("sender", "password", "operador")
+
+        async def scenario():
+            async with self.client() as client:
+                self.assertEqual((await self.login(client, "sender", "password")).status_code, 303)
+                account = await client.get("/ui/account")
+                self.assertEqual(account.status_code, 200)
+                csrf = re.search(r'name="csrf_token" value="([^"]+)"', account.text).group(1)
+                saved = await client.post(
+                    "/ui/account",
+                    data={
+                        "csrf_token": csrf,
+                        "username": "sender-renamed",
+                        "smtp_email": "sender@example.test",
+                        "smtp_app_password": "app-password-only-for-test",
+                    },
+                    follow_redirects=False,
+                )
+                self.assertEqual(saved.status_code, 303)
+                self.assertIn("sender-renamed", (await client.get("/ui/account")).text)
+
+                conn = self.db.get_connection()
+                try:
+                    user_id = conn.execute("SELECT id FROM users WHERE username='sender-renamed'").fetchone()["id"]
+                    cipher = conn.execute("SELECT app_password_cipher FROM user_smtp_settings WHERE user_id=?", (user_id,)).fetchone()["app_password_cipher"]
+                    self.assertNotIn("app-password-only-for-test", cipher)
+                    settings = self.smtp_credentials.get_personal_settings(conn, user_id)
+                    self.assertEqual(settings.email, "sender@example.test")
+                    self.assertEqual(settings.app_password, "app-password-only-for-test")
+                finally:
+                    conn.close()
+
+                csrf = re.search(r'name="csrf_token" value="([^"]+)"', (await client.get("/ui/account")).text).group(1)
+                removed = await client.post(
+                    "/ui/account",
+                    data={"csrf_token": csrf, "username": "sender-renamed", "remove_smtp": "on"},
+                    follow_redirects=False,
+                )
+                self.assertEqual(removed.status_code, 303)
+
+            conn = self.db.get_connection()
+            try:
+                self.assertIsNone(conn.execute("SELECT 1 FROM user_smtp_settings WHERE user_id=?", (self.user_id("sender-renamed"),)).fetchone())
+            finally:
+                conn.close()
 
         asyncio.run(scenario())
 

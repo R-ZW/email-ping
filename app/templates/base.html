@@ -18,6 +18,7 @@
                 <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2 mt-3 mt-lg-0">
                     <li class="nav-item"><a class="btn btn-light btn-sm px-3" href="/ui/new">Novo token</a></li>
                     {% if current_user.role == 'admin' %}<li class="nav-item"><a class="nav-link" href="/ui/users">Usuários</a></li>{% endif %}
+                    <li class="nav-item"><a class="nav-link" href="/ui/account">Minha conta</a></li>
                     <li class="nav-item"><span class="nav-link text-white-50">{{ current_user.username }} <span class="role-pill">{{ current_user.role }}</span></span></li>
                     <li class="nav-item"><form method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn-outline-light btn-sm" type="submit">Sair</button></form></li>
                 </ul>

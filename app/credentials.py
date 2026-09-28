@@ -4,6 +4,7 @@ import getpass
 import secrets
 import sys
 
+from cryptography.fernet import Fernet
 from pwdlib import PasswordHash
 
 
@@ -16,6 +17,8 @@ def main() -> None:
         print(secrets.token_urlsafe(48))
     elif command == "api-token":
         print("epat_" + secrets.token_urlsafe(32))
+    elif command == "smtp-credentials-key":
+        print(Fernet.generate_key().decode("ascii"))
     elif command == "reset-password":
         username = sys.argv[2] if len(sys.argv) > 2 else input("Usuário: ").strip()
         password = getpass.getpass("Nova senha: ")
@@ -45,7 +48,7 @@ def main() -> None:
             raise SystemExit(1)
         print("Senha atualizada. As sessões existentes foram invalidadas.")
     else:
-        print("Use: python -m app.credentials password-hash|session-secret|api-token|reset-password [usuario]")
+        print("Use: python -m app.credentials password-hash|session-secret|api-token|smtp-credentials-key|reset-password [usuario]")
         raise SystemExit(2)
 
 
