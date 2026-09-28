@@ -332,6 +332,30 @@ def update_own_username(
         raise HTTPException(status_code=409, detail="Nome de usuário já existe.") from exc
 
 
+def update_password(
+    conn: sqlite3.Connection,
+    user_id: int,
+    new_password: str,
+    *,
+    current_password: str | None = None,
+) -> CurrentUser:
+    """Troca a senha Argon2 e invalida todas as sessões já emitidas."""
+    if len(new_password) < 8:
+        raise HTTPException(status_code=400, detail="A nova senha deve ter pelo menos 8 caracteres.")
+    row = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+    if current_password is not None and not PASSWORD_HASHER.verify(current_password, row["password_hash"]):
+        raise HTTPException(status_code=400, detail="A senha atual está incorreta.")
+    conn.execute(
+        """UPDATE users SET password_hash=?, session_version=session_version+1, updated_at=?
+           WHERE id=?""",
+        (PASSWORD_HASHER.hash(new_password), now_iso(), user_id),
+    )
+    user = get_user(conn, user_id)
+    return user  # type: ignore[return-value]
+
+
 def list_api_tokens() -> list[sqlite3.Row]:
     conn = get_connection()
     try:

@@ -147,6 +147,35 @@ def update_user(request: Request, user_id: int, role: str = Form(...), is_active
     return RedirectResponse("/ui/users", 303)
 
 
+@router.post("/ui/users/{user_id}/password")
+def reset_user_password(
+    request: Request,
+    user_id: int,
+    new_password: str = Form(...),
+    password_confirmation: str = Form(...),
+    csrf_token: str = Form(...),
+):
+    user = admin_guard(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    auth.verify_csrf(request, csrf_token)
+    if new_password != password_confirmation:
+        raise HTTPException(status_code=400, detail="A confirmação da nova senha não coincide.")
+    conn = get_connection()
+    try:
+        target = auth.update_password(conn, user_id, new_password)
+        conn.commit()
+    finally:
+        conn.close()
+    audit_event("password_reset_by_admin", actor=user.username, actor_role=user.role, client_ip=client_ip(request),
+                action="reset_user_password", target_type="user", target_id=target.id,
+                request_id=getattr(request.state, "request_id", None))
+    if target.id == user.id:
+        request.session.clear()
+        return RedirectResponse("/login", 303)
+    return RedirectResponse("/ui/users", 303)
+
+
 @router.post("/ui/users/{user_id}/api-tokens")
 def issue_api_token(request: Request, user_id: int, label: str = Form(""), csrf_token: str = Form(...)):
     user = admin_guard(request)

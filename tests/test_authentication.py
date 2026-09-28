@@ -165,6 +165,44 @@ class AuthenticationTests(unittest.TestCase):
 
         asyncio.run(scenario())
 
+    def test_users_can_change_password_and_admin_can_reset_it(self):
+        self.auth.create_user("password-user", "old-password", "operador")
+
+        async def scenario():
+            async with self.client() as client:
+                self.assertEqual((await self.login(client, "password-user", "old-password")).status_code, 303)
+                account = await client.get("/ui/account")
+                csrf = re.search(r'name="csrf_token" value="([^"]+)"', account.text).group(1)
+                denied = await client.post(
+                    "/ui/account/password",
+                    data={"csrf_token": csrf, "current_password": "incorrect", "new_password": "new-password", "password_confirmation": "new-password"},
+                )
+                self.assertEqual(denied.status_code, 400)
+                changed = await client.post(
+                    "/ui/account/password",
+                    data={"csrf_token": csrf, "current_password": "old-password", "new_password": "new-password", "password_confirmation": "new-password"},
+                    follow_redirects=False,
+                )
+                self.assertEqual(changed.status_code, 303)
+                self.assertEqual((await self.login(client, "password-user", "old-password")).status_code, 401)
+                self.assertEqual((await self.login(client, "password-user", "new-password")).status_code, 303)
+
+            async with self.client() as admin_client:
+                self.assertEqual((await self.login(admin_client)).status_code, 303)
+                csrf = await self.csrf(admin_client)
+                reset = await admin_client.post(
+                    f"/ui/users/{self.user_id('password-user')}/password",
+                    data={"csrf_token": csrf, "new_password": "admin-reset-password", "password_confirmation": "admin-reset-password"},
+                    follow_redirects=False,
+                )
+                self.assertEqual(reset.status_code, 303)
+
+            async with self.client() as user_client:
+                self.assertEqual((await self.login(user_client, "password-user", "new-password")).status_code, 401)
+                self.assertEqual((await self.login(user_client, "password-user", "admin-reset-password")).status_code, 303)
+
+        asyncio.run(scenario())
+
     def user_id(self, username: str) -> int:
         conn = self.db.get_connection()
         try:

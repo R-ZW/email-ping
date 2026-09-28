@@ -152,6 +152,35 @@ def update_account(
     return RedirectResponse("/ui/account", 303)
 
 
+@router.post("/ui/account/password")
+def update_own_password(
+    request: Request,
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+    password_confirmation: str = Form(...),
+    csrf_token: str = Form(...),
+    conn: sqlite3.Connection = Depends(connection_dependency),
+):
+    user = guard(request)
+    if isinstance(user, RedirectResponse):
+        return user
+    auth.verify_csrf(request, csrf_token)
+    if new_password != password_confirmation:
+        return account_response(request, user, conn, error="A confirmação da nova senha não coincide.", status_code=400)
+    try:
+        auth.update_password(conn, user.id, new_password, current_password=current_password)
+        conn.commit()
+    except HTTPException as exc:
+        conn.rollback()
+        return account_response(request, user, conn, error=str(exc.detail), status_code=exc.status_code)
+    request.session.clear()
+    audit_event("password_changed", actor=user.username, actor_role=user.role,
+                client_ip=request.client.host if request.client else None, action="change_own_password",
+                target_type="user", target_id=user.id,
+                request_id=getattr(request.state, "request_id", None))
+    return RedirectResponse("/login", 303)
+
+
 @router.get("/ui/tokens/{token}", response_class=HTMLResponse)
 def ui_token_detail(token: str, request: Request, conn: sqlite3.Connection = Depends(connection_dependency)):
     user = guard(request)
