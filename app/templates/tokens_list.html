@@ -1,36 +1,14 @@
 {% extends "base.html" %}
-{% block title %}Tokens · Email Tracker{% endblock %}
+{% block title %}Tokens · Email Ping{% endblock %}
 {% block content %}
-    <h1>Tokens <button type="button" onclick="window.location.reload()">Recarregar</button></h1>
-
-    {% if tokens|length == 0 %}
-        <p class="empty-state">Nenhum token criado ainda. <a href="/ui/new">Criar o primeiro</a>.</p>
-    {% else %}
-    <table class="ledger">
-        <thead>
-            <tr>
-                <th>status</th>
-                <th>nome</th>
-                <th>destinatário</th>
-                <th>criado em</th>
-                <th>token</th>
-                <th>operações</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for t in tokens %}
-            <tr>
-                <td><span class="badge badge-{{ t['usage_status'] }}">{{ t['usage_status'] }}</span></td>
-                <td><a href="/ui/tokens/{{ t['token'] }}">{{ t['name'] }}</a></td>
-                <td>{{ t['recipient_email'] or '—' }}</td>
-                <td class="mono">{{ t['created_at'] }}</td>
-                <td class="mono truncate">{{ t['token'] }}</td>
-                <td>
-                    <form method="post" action="/ui/tokens/{{ t['token'] }}/delete" style="display:inline" onsubmit="return confirm('Tem certeza que deseja excluir este token? Esta ação não pode ser desfeita');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button type="submit">Excluir</button></form>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% endif %}
+<div class="page-heading d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3"><div><p class="eyebrow">ACOMPANHAMENTO</p><h1 class="h2 mb-1">Tokens</h1><p class="text-secondary mb-0">Registros de rastreamento disponíveis para sua conta.</p></div><div class="d-flex gap-2"><button class="btn btn-outline-secondary" type="button" onclick="window.location.reload()">Atualizar</button><a class="btn btn-primary" href="/ui/new">Novo token</a></div></div>
+{% if tokens|length == 0 %}
+<section class="empty-card text-center"><div class="empty-icon" aria-hidden="true">✉</div><h2 class="h4">Nenhum token por aqui</h2><p class="text-secondary">Crie o primeiro registro para começar a acompanhar as aberturas.</p><a class="btn btn-primary" href="/ui/new">Criar token</a></section>
+{% else %}
+<section class="card border-0 shadow-sm"><div class="table-responsive"><table class="table table-hover align-middle mb-0"><thead><tr><th>Status</th><th>Nome</th><th>Destinatário</th><th>Criado em</th><th class="d-none d-xl-table-cell">Token</th><th class="text-end">Ações</th></tr></thead><tbody>{% for t in tokens %}<tr>
+<td><span class="badge text-bg-{{ 'success' if t['usage_status'] == 'sent' else 'warning' if t['usage_status'] == 'external' else 'secondary' }} status-badge">{{ t['usage_status'] }}</span></td>
+<td><a class="fw-semibold link-body-emphasis text-decoration-none" href="/ui/tokens/{{ t['token'] }}">{{ t['name'] }}</a></td><td>{{ t['recipient_email'] or '—' }}</td><td class="text-secondary small">{{ t['created_at'] }}</td><td class="d-none d-xl-table-cell"><span class="font-monospace text-secondary small token-truncate">{{ t['token'] }}</span></td>
+<td class="text-end"><div class="btn-group btn-group-sm"><a class="btn btn-outline-primary" href="/ui/tokens/{{ t['token'] }}">Abrir</a><form method="post" action="/ui/tokens/{{ t['token'] }}/delete" class="d-inline" data-confirm="Excluir este token também remove seu histórico de aberturas e e-mails. Esta ação não pode ser desfeita." data-confirm-title="Excluir token" data-confirm-button="Excluir" data-confirm-danger="true"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn-outline-danger" type="submit">Excluir</button></form></div></td>
+</tr>{% endfor %}</tbody></table></div></section>
+{% endif %}
 {% endblock %}

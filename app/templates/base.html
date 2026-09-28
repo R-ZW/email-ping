@@ -1,18 +1,44 @@
-<!DOCTYPE html>
-<html lang="pt-br">
+<!doctype html>
+<html lang="pt-BR">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{% block title %}Email Tracker{% endblock %}</title>
-    <link rel="stylesheet" href="/static/style.css" />
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>{% block title %}Email Ping{% endblock %}</title>
+    <link rel="stylesheet" href="/static/vendor/bootstrap-5.3.8/bootstrap.min.css">
+    <link rel="stylesheet" href="/static/style.css">
 </head>
-<body>
-    <header class="topbar">
-        <a class="brand" href="/">Email Tracker <span class="brand-sub">registro interno</span></a>
-        {% if current_user %}<span>{{ current_user.username }} · {{ current_user.role }}</span><a class="new-token-btn" href="/ui/new">+ novo token</a>{% if current_user.role == 'admin' %}<a href="/ui/users">usuários</a>{% endif %}<form method="post" action="/logout" style="display:inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button type="submit">Sair</button></form>{% endif %}
+<body class="app-body">
+    <header class="navbar navbar-expand-lg navbar-dark app-navbar shadow-sm">
+        <div class="container">
+            {% if current_user %}<a class="navbar-brand fw-semibold" href="/">Email Ping <span class="brand-subtitle">monitoramento de e-mail</span></a>{% else %}<span class="navbar-brand fw-semibold">Email Ping <span class="brand-subtitle">monitoramento de e-mail</span></span>{% endif %}
+            {% if current_user %}
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavigation" aria-controls="mainNavigation" aria-expanded="false" aria-label="Abrir navegação"><span class="navbar-toggler-icon"></span></button>
+            <div class="collapse navbar-collapse" id="mainNavigation">
+                <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-2 mt-3 mt-lg-0">
+                    <li class="nav-item"><a class="btn btn-light btn-sm px-3" href="/ui/new">Novo token</a></li>
+                    {% if current_user.role == 'admin' %}<li class="nav-item"><a class="nav-link" href="/ui/users">Usuários</a></li>{% endif %}
+                    <li class="nav-item"><span class="nav-link text-white-50">{{ current_user.username }} <span class="role-pill">{{ current_user.role }}</span></span></li>
+                    <li class="nav-item"><form method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn-outline-light btn-sm" type="submit">Sair</button></form></li>
+                </ul>
+            </div>
+            {% endif %}
+        </div>
     </header>
-    <main class="content">
+
+    <main class="container app-content">
         {% block content %}{% endblock %}
     </main>
+
+    <div class="modal fade" id="confirmationModal" tabindex="-1" aria-labelledby="confirmationModalTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered"><div class="modal-content border-0 shadow">
+            <div class="modal-header"><h2 class="modal-title fs-5" id="confirmationModalTitle">Confirmar ação</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button></div>
+            <div class="modal-body" id="confirmationModalMessage"></div>
+            <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button type="button" class="btn btn-danger" id="confirmationModalAccept">Confirmar</button></div>
+        </div></div>
+    </div>
+    <script src="/static/vendor/bootstrap-5.3.8/bootstrap.bundle.min.js"></script>
+    <script src="/static/app.js"></script>
+    {% block scripts %}{% endblock %}
 </body>
 </html>

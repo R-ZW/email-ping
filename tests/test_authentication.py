@@ -135,6 +135,8 @@ class AuthenticationTests(unittest.TestCase):
                 self.assertEqual(guest.headers["x-robots-tag"], "noindex, nofollow")
                 for secret in (item["token"], "recipient@example.test", "alert@example.test"):
                     self.assertNotIn(secret, guest.text)
+                self.assertNotIn("<form", guest.text.lower())
+                self.assertNotIn("/ui/", guest.text)
                 self.assertEqual((await client.get("/tokens")).status_code, 401)
                 regenerated = await client.post(f"/tokens/{item['token']}/public-link/regenerate", headers=headers)
                 self.assertEqual(regenerated.status_code, 200)

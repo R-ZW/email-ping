@@ -1,1 +1,13 @@
-{% extends "base.html" %}{% block content %}<section class="panel"><h1>Acesso interno</h1>{% if error %}<p class="error-msg">{{ error }}</p>{% endif %}<form method="post" action="/login" class="form"><label>Usuário<input name="username" required /></label><label>Senha<input type="password" name="password" required /></label><button class="btn btn-primary">Entrar</button></form></section>{% endblock %}
+{% extends "base.html" %}
+{% block title %}Entrar · Email Ping{% endblock %}
+{% block content %}
+<div class="login-layout"><section class="card login-card border-0 shadow-sm"><div class="card-body p-4 p-md-5">
+    <p class="eyebrow">ÁREA RESTRITA</p><h1 class="h3 mb-2">Acesse sua conta</h1><p class="text-secondary mb-4">Entre para gerenciar os registros e acompanhamentos de e-mail.</p>
+    {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
+    <form method="post" action="/login" class="vstack gap-3">
+        <div><label class="form-label" for="username">Usuário</label><input class="form-control form-control-lg" id="username" name="username" autocomplete="username" required autofocus></div>
+        <div><label class="form-label" for="password">Senha</label><input class="form-control form-control-lg" id="password" name="password" type="password" autocomplete="current-password" required></div>
+        <button class="btn btn-primary btn-lg w-100" type="submit">Entrar</button>
+    </form>
+</div></section></div>
+{% endblock %}

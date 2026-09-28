@@ -1,53 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Enviar email · {{ token_row.name }}{% endblock %}
+{% block title %}Enviar e-mail · {{ token_row.name }}{% endblock %}
 {% block content %}
-    <p class="back-link"><a href="/ui/tokens/{{ token_row.token }}">← voltar ao token</a></p>
-    <h1>Enviar email de teste</h1>
-    <p class="hint">Destinatário: <strong>{{ token_row.recipient_email or "nenhum cadastrado" }}</strong> ·
-        token <span class="mono">{{ token_row.token }}</span>. O pixel de rastreamento é adicionado
-        automaticamente ao HTML antes do envio.</p>
-
-    {% if blocked_reason %}
-        <p class="error-msg">{{ blocked_reason }}</p>
-    {% else %}
-    <form method="post" action="/ui/send/{{ token_row.token }}" enctype="multipart/form-data" class="form">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-        <label>
-            Assunto
-            <input type="text" name="subject" required placeholder="Assunto do email" />
-        </label>
-
-        <label>
-            Corpo (HTML)
-            <textarea id="body_html" name="body_html" rows="12" required
-                placeholder="&lt;p&gt;Olá!&lt;/p&gt;"></textarea>
-        </label>
-
-        <label>
-            Anexos (opcional)
-            <input type="file" name="files" multiple />
-        </label>
-
-        <div class="editor-grid">
-            <div>
-                <h3>Preview</h3>
-                <iframe id="preview" class="preview-frame" title="preview do email"></iframe>
-            </div>
-        </div>
-
-        <button type="submit" class="btn btn-primary">Enviar email</button>
-    </form>
-
-    <script>
-        const textarea = document.getElementById("body_html");
-        const preview = document.getElementById("preview");
-
-        function updatePreview() {
-            preview.srcdoc = textarea.value;
-        }
-
-        textarea.addEventListener("input", updatePreview);
-        updatePreview();
-    </script>
-    {% endif %}
+<p class="mb-4"><a class="link-secondary text-decoration-none" href="/ui/tokens/{{ token_row.token }}">← Voltar ao token</a></p><div class="page-heading"><p class="eyebrow">ENVIO</p><h1 class="h2 mb-1">Enviar e-mail de teste</h1><p class="text-secondary mb-0">Para <strong>{{ token_row.recipient_email or 'nenhum destinatário cadastrado' }}</strong>. O pixel é inserido automaticamente antes do envio.</p></div>
+{% if blocked_reason %}<div class="alert alert-warning shadow-sm" role="alert"><h2 class="h6 alert-heading">Envio indisponível</h2>{{ blocked_reason }}</div>{% else %}<form method="post" action="/ui/send/{{ token_row.token }}" enctype="multipart/form-data" class="row g-4"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><div class="col-lg-7"><section class="card border-0 shadow-sm"><div class="card-body p-4"><div class="mb-3"><label class="form-label" for="subject">Assunto</label><input class="form-control" id="subject" name="subject" required placeholder="Assunto do e-mail"></div><div class="mb-3"><label class="form-label" for="body_html">Corpo em HTML</label><textarea class="form-control font-monospace" id="body_html" name="body_html" rows="14" required placeholder="&lt;p&gt;Olá!&lt;/p&gt;"></textarea></div><div><label class="form-label" for="files">Anexos</label><input class="form-control" id="files" type="file" name="files" multiple><div class="form-text">Opcional.</div></div></div></section></div><div class="col-lg-5"><section class="card border-0 shadow-sm sticky-lg-top editor-preview"><div class="card-header bg-white"><h2 class="h6 mb-0">Prévia</h2></div><div class="card-body p-0"><iframe id="preview" class="preview-frame" title="Prévia do e-mail"></iframe></div></section></div><div class="col-12 d-flex gap-2"><a class="btn btn-light" href="/ui/tokens/{{ token_row.token }}">Cancelar</a><button type="submit" class="btn btn-primary">Enviar e-mail</button></div></form>{% endif %}
 {% endblock %}
