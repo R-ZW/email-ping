@@ -33,3 +33,17 @@ ATTACHMENTS_DIR = Path(_attachments_dir_env) if _attachments_dir_env else BASE_D
 ATTACHMENTS_DIR.mkdir(parents=True, exist_ok=True)
 
 MAX_ATTACHMENT_SIZE_BYTES = int(os.getenv("MAX_ATTACHMENT_SIZE_BYTES", 10 * 1024 * 1024))
+
+_log_dir_env = os.getenv("LOG_DIR")
+if _log_dir_env:
+    _configured_log_dir = Path(_log_dir_env)
+    LOG_DIR = (
+        _configured_log_dir
+        if _configured_log_dir.is_absolute()
+        else BASE_DIR / _configured_log_dir
+    )
+else:
+    LOG_DIR = BASE_DIR / "logs"
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+LOG_MAX_BYTES = int(os.getenv("LOG_MAX_BYTES", 10 * 1024 * 1024))
+LOG_BACKUP_COUNT = int(os.getenv("LOG_BACKUP_COUNT", 10))

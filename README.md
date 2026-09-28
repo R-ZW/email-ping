@@ -10,9 +10,15 @@ source .venv/bin/activate
 ```
 
 ### 2️⃣ Subir o servidor
+
+#### Localmente
 ```powershell
 # pwd -> .../email-ping/
 uvicorn app.main:app --reload
+```
 
-cloudflared tunnel --url http://localhost:8000
+#### No server:
+```powershell
+# pwd -> .../email-ping/
+uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
