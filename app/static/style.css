@@ -2,7 +2,7 @@
 body.app-body { background: var(--app-surface); color: #1f2937; min-height: 100vh; }
 .app-navbar { background: linear-gradient(110deg, var(--app-navy), var(--app-blue)); min-height: 4.5rem; }
 .brand-subtitle { color: #dbeafe; font-size: .76rem; font-weight: 400; margin-left: .45rem; }
-.role-pill { border: 1px solid rgba(255,255,255,.32); border-radius: 999px; font-size: .67rem; padding: .16rem .45rem; text-transform: uppercase; }
+.role-pill { border: 1px solid rgba(255,255,255,.32); border-radius: 999px; font-size: .67rem; padding: .16rem .45rem; text-transform: uppercase; }.account-link { border-radius: .4rem; color: rgba(255,255,255,.85); padding-left: .6rem !important; padding-right: .6rem !important; }.account-link:hover, .account-link:focus { background: rgba(255,255,255,.12); color: #fff; }
 .app-content { padding-top: 2.5rem; padding-bottom: 4rem; }
 .page-heading { margin-bottom: 1.75rem; }
 .eyebrow { color: var(--app-blue); font-size: .72rem; font-weight: 700; letter-spacing: .1em; margin-bottom: .35rem; }
