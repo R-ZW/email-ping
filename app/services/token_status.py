@@ -82,27 +82,51 @@ def get_usage_status(conn: sqlite3.Connection, token_row: TokenRow) -> str:
     return "unused"
 
 
-def list_tokens(conn: sqlite3.Connection, owner_user_id: int | None = None) -> list[sqlite3.Row]:
-    """Lista todos os tokens com o usage_status já calculado via SQL (sem N+1 queries)."""
-    query = """
-        SELECT
-            t.*,
-            u.username AS owner_username,
-            CASE
-                WHEN t.external_use_marked_at IS NOT NULL THEN 'external'
-                WHEN EXISTS (
-                    SELECT 1 FROM emails e WHERE e.token_id = t.id AND e.status = 'sent'
-                ) THEN 'sent'
-                ELSE 'unused'
-            END AS usage_status
+_USAGE_STATUS_SQL = """CASE
+    WHEN t.external_use_marked_at IS NOT NULL THEN 'external'
+    WHEN EXISTS (SELECT 1 FROM emails e WHERE e.token_id = t.id AND e.status = 'sent') THEN 'sent'
+    ELSE 'unused'
+END"""
+
+
+def _token_filters(owner_user_id: int | None, search: str | None, usage_status: str | None):
+    clauses: list[str] = []
+    params: list[object] = []
+    if owner_user_id is not None:
+        clauses.append("t.owner_user_id = ?")
+        params.append(owner_user_id)
+    if search:
+        term = f"%{search.strip()}%"
+        clauses.append("(t.name LIKE ? OR t.token LIKE ? OR COALESCE(t.recipient_email, '') LIKE ?)")
+        params.extend((term, term, term))
+    if usage_status in {"unused", "sent", "external"}:
+        clauses.append(f"{_USAGE_STATUS_SQL} = ?")
+        params.append(usage_status)
+    return (" WHERE " + " AND ".join(clauses)) if clauses else "", params
+
+
+def count_tokens(conn: sqlite3.Connection, owner_user_id: int | None = None, *, search: str | None = None, usage_status: str | None = None) -> int:
+    where_clause, params = _token_filters(owner_user_id, search, usage_status)
+    return conn.execute(f"SELECT COUNT(*) FROM tokens t{where_clause}", params).fetchone()[0]
+
+
+def list_tokens(conn: sqlite3.Connection, owner_user_id: int | None = None, *, search: str | None = None, usage_status: str | None = None, limit: int | None = None, offset: int = 0) -> list[sqlite3.Row]:
+    """Lista tokens com filtros, paginação e status calculado sem consultas N+1."""
+    where_clause, params = _token_filters(owner_user_id, search, usage_status)
+    pagination = ""
+    if limit is not None:
+        pagination = " LIMIT ? OFFSET ?"
+        params.extend((limit, offset))
+    query = f"""
+        SELECT t.*, owner.username AS owner_username, creator.username AS created_by_username,
+               {_USAGE_STATUS_SQL} AS usage_status
         FROM tokens t
-        LEFT JOIN users u ON u.id = t.owner_user_id
+        LEFT JOIN users owner ON owner.id = t.owner_user_id
+        LEFT JOIN users creator ON creator.id = t.created_by_user_id
         {where_clause}
         ORDER BY t.created_at DESC
+        {pagination}
     """
-    where_clause = "" if owner_user_id is None else "WHERE t.owner_user_id = ?"
-    query = query.format(where_clause=where_clause)
-    params = () if owner_user_id is None else (owner_user_id,)
     return conn.execute(query, params).fetchall()
 
 

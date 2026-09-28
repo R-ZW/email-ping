@@ -27,7 +27,7 @@ def send_email(
 ):
     """Envia um email para o destinatário do token, injetando o pixel automaticamente.
 
-    Usado tanto pelo editor de teste na UI quanto por qualquer automação externa
+    Usado tanto pelo editor da interface quanto por qualquer automação externa
     que já tenha um token criado via /create. Só permite um envio bem-sucedido
     por token (ver token_status.ensure_can_send).
     """

@@ -13,6 +13,7 @@ class EmailView:
     error_message: Optional[str]
     created_at: str
     sent_at: Optional[str]
+    body_html: str
     attachment_filenames: list[str]
 
 
@@ -35,6 +36,7 @@ def list_emails_for_token(conn: sqlite3.Connection, token_id: int) -> list[Email
                 error_message=row["error_message"],
                 created_at=row["created_at"],
                 sent_at=row["sent_at"],
+                body_html=row["body_html"],
                 attachment_filenames=[a["filename"] for a in attachment_rows],
             )
         )

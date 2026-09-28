@@ -18,6 +18,7 @@ class TokenOut(BaseModel):
     external_use_note: Optional[str]
     usage_status: UsageStatus
     owner_username: str | None = None
+    created_by_username: str | None = None
     public_url: str | None = None
 
 

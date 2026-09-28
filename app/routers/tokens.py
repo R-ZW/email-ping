@@ -23,22 +23,26 @@ def _find(conn, token):
 
 
 def _row(conn, token_id):
-    return conn.execute("SELECT t.*, u.username AS owner_username FROM tokens t LEFT JOIN users u ON u.id=t.owner_user_id WHERE t.id=?", (token_id,)).fetchone()
+    return conn.execute("""SELECT t.*, owner.username AS owner_username, creator.username AS created_by_username
+                           FROM tokens t
+                           LEFT JOIN users owner ON owner.id=t.owner_user_id
+                           LEFT JOIN users creator ON creator.id=t.created_by_user_id
+                           WHERE t.id=?""", (token_id,)).fetchone()
 
 
 def token_out(row, usage_status):
     public_url = f"{PUBLIC_BASE_URL}/public/tokens/{row['public_token']}" if row["public_link_active"] and row["public_token"] else None
-    return TokenOut(token=row["token"], name=row["name"], recipient_email=row["recipient_email"], alert_email=row["alert_email"], created_at=row["created_at"], confirmed_at=row["confirmed_at"], external_use_marked_at=row["external_use_marked_at"], external_use_note=row["external_use_note"], usage_status=usage_status, owner_username=row["owner_username"], public_url=public_url)
+    return TokenOut(token=row["token"], name=row["name"], recipient_email=row["recipient_email"], alert_email=row["alert_email"], created_at=row["created_at"], confirmed_at=row["confirmed_at"], external_use_marked_at=row["external_use_marked_at"], external_use_note=row["external_use_note"], usage_status=usage_status, owner_username=row["owner_username"], created_by_username=row["created_by_username"], public_url=public_url)
 
 
 def create_token_record(conn, actor, name, recipient_email, alert_email, owner_user_id=None):
-    owner_id = actor.id if actor.role == "operador" else (owner_user_id or actor.id)
+    owner_id = (owner_user_id or actor.id) if actor.role == "admin" else actor.id
     if conn.execute("SELECT 1 FROM users WHERE id=? AND is_active=1", (owner_id,)).fetchone() is None:
         raise HTTPException(400, "Proprietário inválido ou inativo.")
     alert = alert_email or GMAIL_USER
     if not alert:
         raise HTTPException(400, "alert_email não informado e GMAIL_USER não está configurado.")
-    cursor = conn.execute("INSERT INTO tokens(token,name,recipient_email,alert_email,created_at,owner_user_id,public_token,public_link_active) VALUES (?,?,?,?,?,?,?,1)", (str(uuid.uuid4()), name, recipient_email, alert, datetime.now(ZoneInfo("America/Sao_Paulo")).isoformat(), owner_id, new_public_token()))
+    cursor = conn.execute("INSERT INTO tokens(token,name,recipient_email,alert_email,created_at,owner_user_id,created_by_user_id,public_token,public_link_active) VALUES (?,?,?,?,?,?,?,?,1)", (str(uuid.uuid4()), name, recipient_email, alert, datetime.now(ZoneInfo("America/Sao_Paulo")).isoformat(), owner_id, actor.id, new_public_token()))
     conn.commit()
     return _row(conn, cursor.lastrowid)
 
@@ -64,7 +68,7 @@ def delete_token_record(conn, token_row):
 
 def update_token_record(conn, actor, token_row, name, recipient_email, alert_email, owner_user_id=None):
     owner_id = token_row.owner_user_id
-    if actor.can_manage_all_tokens and owner_user_id is not None:
+    if actor.role == "admin" and owner_user_id is not None:
         owner_id = owner_user_id
     if conn.execute("SELECT 1 FROM users WHERE id=? AND is_active=1", (owner_id,)).fetchone() is None:
         raise HTTPException(400, "Proprietário inválido ou inativo.")

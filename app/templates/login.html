@@ -2,7 +2,7 @@
 {% block title %}Entrar · Email Ping{% endblock %}
 {% block content %}
 <div class="login-layout"><section class="card login-card border-0 shadow-sm"><div class="card-body p-4 p-md-5">
-    <p class="eyebrow">ÁREA RESTRITA</p><h1 class="h3 mb-2">Acesse sua conta</h1><p class="text-secondary mb-4">Entre para gerenciar os registros e acompanhamentos de e-mail.</p>
+    <p class="eyebrow">LOGIN</p><h1 class="h3 mb-2">Acesse sua conta</h1><p class="text-secondary mb-4">Entre para gerenciar os registros e acompanhamentos de e-mail.</p>
     {% if error %}<div class="alert alert-danger" role="alert">{{ error }}</div>{% endif %}
     <form method="post" action="/login" class="vstack gap-3">
         <div><label class="form-label" for="username">Usuário</label><input class="form-control form-control-lg" id="username" name="username" autocomplete="username" required autofocus></div>

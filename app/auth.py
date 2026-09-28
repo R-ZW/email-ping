@@ -80,6 +80,10 @@ def bootstrap_admin_and_migrate_tokens() -> None:
             "UPDATE tokens SET owner_user_id = ? WHERE owner_user_id IS NULL",
             (admin["id"],),
         )
+        conn.execute(
+            "UPDATE tokens SET created_by_user_id = ? WHERE created_by_user_id IS NULL",
+            (admin["id"],),
+        )
         rows = conn.execute("SELECT id FROM tokens WHERE public_token IS NULL").fetchall()
         for row in rows:
             conn.execute(

@@ -115,6 +115,7 @@ def init_db() -> None:
     try:
         conn.executescript(SCHEMA)
         _ensure_column(conn, "tokens", "owner_user_id", "INTEGER")
+        _ensure_column(conn, "tokens", "created_by_user_id", "INTEGER")
         _ensure_column(conn, "tokens", "public_token", "TEXT")
         _ensure_column(conn, "tokens", "public_link_active", "INTEGER NOT NULL DEFAULT 1")
         conn.execute(
@@ -122,6 +123,9 @@ def init_db() -> None:
         )
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_tokens_owner_user_id ON tokens(owner_user_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_tokens_created_by_user_id ON tokens(created_by_user_id)"
         )
         conn.commit()
     finally:

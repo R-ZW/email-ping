@@ -167,6 +167,12 @@ class AuthenticationTests(unittest.TestCase):
                     "name": "B", "owner_user_id": self.user_id("operator-b")
                 })
                 self.assertEqual(b.status_code, 201)
+                tech_created = await client.post("/tokens", headers={"Authorization": f"Bearer {tech_key}"}, json={
+                    "name": "Técnico", "owner_user_id": self.user_id("operator-b")
+                })
+                self.assertEqual(tech_created.status_code, 201)
+                self.assertEqual(tech_created.json()["owner_username"], "tech")
+                self.assertEqual(tech_created.json()["created_by_username"], "tech")
                 own_list = await client.get("/tokens", headers={"Authorization": f"Bearer {a_key}"})
                 self.assertEqual([row["name"] for row in own_list.json()], ["A"])
                 forbidden = await client.post(f"/tokens/{b.json()['token']}/mark_external", headers={"Authorization": f"Bearer {a_key}"}, json={})
@@ -199,9 +205,10 @@ class AuthenticationTests(unittest.TestCase):
         self.auth.bootstrap_admin_and_migrate_tokens()
         conn = self.db.get_connection()
         try:
-            legacy = conn.execute("SELECT owner_user_id,public_token,public_link_active FROM tokens WHERE token='legacy-token'").fetchone()
+            legacy = conn.execute("SELECT owner_user_id,created_by_user_id,public_token,public_link_active FROM tokens WHERE token='legacy-token'").fetchone()
             admin = conn.execute("SELECT id FROM users WHERE username='admin'").fetchone()
             self.assertEqual(legacy["owner_user_id"], admin["id"])
+            self.assertEqual(legacy["created_by_user_id"], admin["id"])
             self.assertTrue(legacy["public_token"])
             self.assertEqual(legacy["public_link_active"], 1)
         finally:
