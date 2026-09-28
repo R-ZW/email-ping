@@ -51,19 +51,21 @@
     const richEditor = document.getElementById("rich-editor");
     const textarea = document.getElementById("body_html");
     const preview = document.getElementById("preview");
+    const htmlOutput = document.getElementById("html-output");
     const emailForm = document.getElementById("email-form");
     const editorError = document.getElementById("editor-error");
     if (richEditor && textarea) {
         const updatePreview = () => {
             textarea.value = richEditor.innerHTML;
             if (preview) preview.srcdoc = textarea.value;
+            if (htmlOutput) htmlOutput.value = textarea.value;
         };
         richEditor.addEventListener("input", updatePreview);
         document.querySelectorAll("[data-editor-command]").forEach((button) => {
             button.addEventListener("click", () => {
                 const command = button.dataset.editorCommand;
-                if (command === "createLink") {
-                    const url = window.prompt("Endereço do link:");
+                if (command === "createLink" || command === "insertImage") {
+                    const url = window.prompt(command === "insertImage" ? "Endereço da imagem:" : "Endereço do link:");
                     if (url) document.execCommand(command, false, url);
                 } else {
                     document.execCommand(command, false);

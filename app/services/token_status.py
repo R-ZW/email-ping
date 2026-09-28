@@ -119,6 +119,7 @@ def list_tokens(conn: sqlite3.Connection, owner_user_id: int | None = None, *, s
         params.extend((limit, offset))
     query = f"""
         SELECT t.*, owner.username AS owner_username, creator.username AS created_by_username,
+               (SELECT COUNT(*) FROM opens o WHERE o.token_id = t.id) AS open_count,
                {_USAGE_STATUS_SQL} AS usage_status
         FROM tokens t
         LEFT JOIN users owner ON owner.id = t.owner_user_id
