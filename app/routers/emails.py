@@ -2,9 +2,11 @@ import sqlite3
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 
-from app.db import get_connection
+from app.auth import CurrentUser, authorize_token_management, require_api_user
+from app.db import connection_dependency
+from app.logging_config import audit_event
 from app.schemas import EmailOut, OpenOut, OpensListOut
 from app.services import mailer, token_status
 from app.services.attachments import save_attachments
@@ -15,11 +17,13 @@ router = APIRouter(tags=["emails"])
 
 @router.post("/send_email", response_model=EmailOut)
 def send_email(
+    request: Request,
     token: str = Form(...),
     subject: str = Form(...),
     body_html: str = Form(...),
     files: list[UploadFile] = File(default=[]),
-    conn: sqlite3.Connection = Depends(get_connection),
+    actor: CurrentUser = Depends(require_api_user),
+    conn: sqlite3.Connection = Depends(connection_dependency),
 ):
     """Envia um email para o destinatário do token, injetando o pixel automaticamente.
 
@@ -31,6 +35,7 @@ def send_email(
         token_row = token_status.get_token_or_raise(conn, token)
     except token_status.TokenNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    authorize_token_management(request, actor, token_row)
 
     try:
         token_status.ensure_can_send(conn, token_row)
@@ -100,6 +105,10 @@ def send_email(
     conn.commit()
 
     row = conn.execute("SELECT * FROM emails WHERE id = ?", (email_id,)).fetchone()
+    audit_event("email_sent", actor=actor.username, actor_role=actor.role,
+                client_ip=request.client.host if request.client else None, action="send_email",
+                target_type="token", target_id=token,
+                request_id=getattr(request.state, "request_id", None))
     return EmailOut(
         id=row["id"],
         subject=row["subject"],
@@ -112,11 +121,12 @@ def send_email(
 
 
 @router.get("/opens/{token}", response_model=OpensListOut)
-def get_opens(token: str, conn: sqlite3.Connection = Depends(get_connection)):
+def get_opens(token: str, request: Request, actor: CurrentUser = Depends(require_api_user), conn: sqlite3.Connection = Depends(connection_dependency)):
     try:
         token_row = token_status.get_token_or_raise(conn, token)
     except token_status.TokenNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    authorize_token_management(request, actor, token_row)
 
     opens = [
         OpenOut(
@@ -132,7 +142,7 @@ def get_opens(token: str, conn: sqlite3.Connection = Depends(get_connection)):
 
 
 @router.post("/confirm/{token}")
-def confirm_open(token: str, conn: sqlite3.Connection = Depends(get_connection)):
+def confirm_open(token: str, request: Request, actor: CurrentUser = Depends(require_api_user), conn: sqlite3.Connection = Depends(connection_dependency)):
     """Disparo MANUAL da confirmação de leitura. Quem decide se a abertura é
     confiável (não é prefetch de proxy) é o humano, olhando /opens/{token} antes
     de chamar esta rota. Só pode ser confirmado uma vez por token."""
@@ -140,6 +150,7 @@ def confirm_open(token: str, conn: sqlite3.Connection = Depends(get_connection))
         token_row = token_status.get_token_or_raise(conn, token)
     except token_status.TokenNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    authorize_token_management(request, actor, token_row)
 
     if token_row.confirmed_at is not None:
         raise HTTPException(
@@ -179,5 +190,10 @@ def confirm_open(token: str, conn: sqlite3.Connection = Depends(get_connection))
         "UPDATE tokens SET confirmed_at = ? WHERE token = ?", (confirmed_at, token)
     )
     conn.commit()
+
+    audit_event("read_confirmed", actor=actor.username, actor_role=actor.role,
+                client_ip=request.client.host if request.client else None, action="confirm_read",
+                target_type="token", target_id=token,
+                request_id=getattr(request.state, "request_id", None))
 
     return {"token": token, "confirmed_at": confirmed_at}

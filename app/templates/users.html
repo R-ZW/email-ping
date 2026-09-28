@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Usuários</h1>
+<table class="ledger">
+  <tr><th>usuário</th><th>função</th><th>ativo</th><th>administração</th></tr>
+  {% for u in users %}
+  <tr>
+    <td>{{ u.username }}</td><td>{{ u.role }}</td><td>{{ 'sim' if u.is_active else 'não' }}</td>
+    <td><form method="post" action="/ui/users/{{ u.id }}" class="form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+      <select name="role"><option value="operador" {% if u.role == 'operador' %}selected{% endif %}>operador</option><option value="tecnico" {% if u.role == 'tecnico' %}selected{% endif %}>técnico</option><option value="admin" {% if u.role == 'admin' %}selected{% endif %}>admin</option></select>
+      <label><input type="checkbox" name="is_active" {% if u.is_active %}checked{% endif %}/> ativo</label><button type="submit">Salvar</button>
+    </form>
+    {% if u.is_active %}<form method="post" action="/ui/users/{{ u.id }}/api-tokens" class="form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><input name="label" placeholder="rótulo do token" /><button type="submit">Emitir token de API</button></form>{% endif %}</td>
+  </tr>
+  {% endfor %}
+</table>
+<section class="panel"><h2>Novo usuário</h2><form method="post" action="/ui/users" class="form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><label>Usuário<input name="username" required /></label><label>Senha inicial<input type="password" name="password" required /></label><label>Função<select name="role"><option value="operador">operador</option><option value="tecnico">técnico</option><option value="admin">admin</option></select></label><button class="btn btn-primary">Cadastrar</button></form></section>
+<section class="panel"><h2>Tokens de API</h2><table class="ledger"><tr><th>usuário</th><th>rótulo</th><th>criado em</th><th>estado</th><th></th></tr>{% for token in api_tokens %}<tr><td>{{ token.username }}</td><td>{{ token.label }}</td><td>{{ token.created_at }}</td><td>{{ 'revogado' if token.revoked_at else 'ativo' }}</td><td>{% if not token.revoked_at %}<form method="post" action="/ui/api-tokens/{{ token.id }}/revoke"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button type="submit">Revogar</button></form>{% endif %}</td></tr>{% endfor %}</table></section>
+{% endblock %}

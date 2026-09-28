@@ -1,0 +1,1 @@
+{% extends "base.html" %}{% block content %}<section class="panel"><h1>{{ token.name }}</h1><p>Registro criado em {{ token.created_at }}</p><p>Confirmado em {{ token.confirmed_at or "ainda não confirmado" }}</p><h2>Aberturas ({{ opens|length }})</h2><ul>{% for open in opens %}<li>{{ open.opened_at }}</li>{% endfor %}</ul></section>{% endblock %}

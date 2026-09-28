@@ -237,6 +237,7 @@ def audit_event(
     event: str,
     *,
     actor: str | None = None,
+    actor_role: str | None = None,
     client_ip: str | None = None,
     action: str | None = None,
     target_type: str | None = None,
@@ -251,6 +252,7 @@ def audit_event(
         extra={
             "event": event,
             "actor": actor or "anonymous",
+            "actor_role": actor_role,
             "client_ip": client_ip,
             "action": action,
             "target_type": target_type,

@@ -5,10 +5,12 @@
     <h1>Novo token de rastreamento</h1>
 
     <form method="post" action="/ui/new" class="form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
         <label>
             Nome (identificação interna do email)
             <input type="text" name="name" required />
         </label>
+        {% if owners %}<label>Proprietário<select name="owner_user_id">{% for owner in owners %}<option value="{{ owner.id }}">{{ owner.username }}</option>{% endfor %}</select></label>{% endif %}
         <label>
             Email do destinatário
             <input type="email" name="recipient_email" />

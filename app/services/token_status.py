@@ -41,6 +41,9 @@ class TokenRow:
     confirmed_at: Optional[str]
     external_use_marked_at: Optional[str]
     external_use_note: Optional[str]
+    owner_user_id: Optional[int]
+    public_token: Optional[str]
+    public_link_active: bool
 
 
 def get_token_or_raise(conn: sqlite3.Connection, token: str) -> TokenRow:
@@ -57,6 +60,9 @@ def get_token_or_raise(conn: sqlite3.Connection, token: str) -> TokenRow:
         confirmed_at=row["confirmed_at"],
         external_use_marked_at=row["external_use_marked_at"],
         external_use_note=row["external_use_note"],
+        owner_user_id=row["owner_user_id"],
+        public_token=row["public_token"],
+        public_link_active=bool(row["public_link_active"]),
     )
 
 
@@ -76,11 +82,12 @@ def get_usage_status(conn: sqlite3.Connection, token_row: TokenRow) -> str:
     return "unused"
 
 
-def list_tokens(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+def list_tokens(conn: sqlite3.Connection, owner_user_id: int | None = None) -> list[sqlite3.Row]:
     """Lista todos os tokens com o usage_status já calculado via SQL (sem N+1 queries)."""
     query = """
         SELECT
             t.*,
+            u.username AS owner_username,
             CASE
                 WHEN t.external_use_marked_at IS NOT NULL THEN 'external'
                 WHEN EXISTS (
@@ -89,9 +96,14 @@ def list_tokens(conn: sqlite3.Connection) -> list[sqlite3.Row]:
                 ELSE 'unused'
             END AS usage_status
         FROM tokens t
+        LEFT JOIN users u ON u.id = t.owner_user_id
+        {where_clause}
         ORDER BY t.created_at DESC
     """
-    return conn.execute(query).fetchall()
+    where_clause = "" if owner_user_id is None else "WHERE t.owner_user_id = ?"
+    query = query.format(where_clause=where_clause)
+    params = () if owner_user_id is None else (owner_user_id,)
+    return conn.execute(query, params).fetchall()
 
 
 def ensure_can_send(conn: sqlite3.Connection, token_row: TokenRow) -> None:

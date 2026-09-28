@@ -26,10 +26,7 @@
                 <td class="mono">{{ t['created_at'] }}</td>
                 <td class="mono truncate">{{ t['token'] }}</td>
                 <td>
-                    <a href="/ui/tokens/{{ t['token'] }}/delete"
-                    onclick="return confirm('Tem certeza que deseja excluir este token? Esta ação não pode ser desfeita');">
-                        Excluir
-                    </a>
+                    <form method="post" action="/ui/tokens/{{ t['token'] }}/delete" style="display:inline" onsubmit="return confirm('Tem certeza que deseja excluir este token? Esta ação não pode ser desfeita');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}" /><button type="submit">Excluir</button></form>
                 </td>
             </tr>
             {% endfor %}

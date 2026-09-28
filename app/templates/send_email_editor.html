@@ -11,6 +11,7 @@
         <p class="error-msg">{{ blocked_reason }}</p>
     {% else %}
     <form method="post" action="/ui/send/{{ token_row.token }}" enctype="multipart/form-data" class="form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
         <label>
             Assunto
             <input type="text" name="subject" required placeholder="Assunto do email" />

@@ -7,6 +7,7 @@ já é suficiente. Cada request abre e fecha sua própria conexão (get_connecti
 """
 
 import sqlite3
+from collections.abc import Generator
 
 from app.config import DATABASE_PATH
 
@@ -26,6 +27,28 @@ CREATE TABLE IF NOT EXISTS tokens (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_tokens_token ON tokens(token);
+
+CREATE TABLE IF NOT EXISTS users (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    username        TEXT UNIQUE NOT NULL,
+    password_hash   TEXT NOT NULL,
+    role            TEXT NOT NULL CHECK (role IN ('admin', 'tecnico', 'operador')),
+    is_active       INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+    session_version INTEGER NOT NULL DEFAULT 0,
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS api_tokens (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash  TEXT UNIQUE NOT NULL,
+    label       TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    revoked_at  TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_api_tokens_hash ON api_tokens(token_hash);
 
 CREATE TABLE IF NOT EXISTS emails (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,11 +100,35 @@ def get_connection() -> sqlite3.Connection:
     return conn
 
 
+def connection_dependency() -> Generator[sqlite3.Connection, None, None]:
+    """Dependency que garante o fechamento da conexão ao fim da requisição."""
+    conn = get_connection()
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+
 def init_db() -> None:
     """Cria as tabelas/índices caso não existam. Chamado uma vez, no startup da app."""
     conn = get_connection()
     try:
         conn.executescript(SCHEMA)
+        _ensure_column(conn, "tokens", "owner_user_id", "INTEGER")
+        _ensure_column(conn, "tokens", "public_token", "TEXT")
+        _ensure_column(conn, "tokens", "public_link_active", "INTEGER NOT NULL DEFAULT 1")
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_tokens_public_token ON tokens(public_token)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_tokens_owner_user_id ON tokens(owner_user_id)"
+        )
         conn.commit()
     finally:
         conn.close()
+
+
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in columns:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")

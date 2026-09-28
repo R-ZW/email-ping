@@ -17,6 +17,22 @@ class TokenOut(BaseModel):
     external_use_marked_at: Optional[str]
     external_use_note: Optional[str]
     usage_status: UsageStatus
+    owner_username: str | None = None
+    public_url: str | None = None
+
+
+class CreateTokenRequest(BaseModel):
+    name: str
+    recipient_email: Optional[str] = None
+    alert_email: Optional[str] = None
+    owner_user_id: int | None = None
+
+
+class UpdateTokenRequest(BaseModel):
+    name: str
+    recipient_email: Optional[str] = None
+    alert_email: Optional[str] = None
+    owner_user_id: int | None = None
 
 
 class MarkExternalRequest(BaseModel):

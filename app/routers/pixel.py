@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, Request, Response
 
 from app.constants import TRACKING_PIXEL_PNG
-from app.db import get_connection
+from app.db import connection_dependency
 
 router = APIRouter(tags=["pixel"])
 
@@ -17,7 +17,7 @@ _NO_CACHE_HEADERS = {
 
 @router.get("/pixel/{token}")
 def pixel(
-    token: str, request: Request, conn: sqlite3.Connection = Depends(get_connection)
+    token: str, request: Request, conn: sqlite3.Connection = Depends(connection_dependency)
 ):
     """Registra uma abertura e retorna o PNG 1x1.
 

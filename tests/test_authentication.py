@@ -1,0 +1,207 @@
+"""Testes de integração dos limites de autenticação e propriedade."""
+
+from __future__ import annotations
+
+import asyncio
+import importlib
+import os
+import re
+import shutil
+import sqlite3
+import tempfile
+import unittest
+from pathlib import Path
+from urllib.parse import urlsplit
+
+import httpx
+from pwdlib import PasswordHash
+
+
+class AuthenticationTests(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = Path(tempfile.mkdtemp(prefix="email-ping-auth-"))
+        self.database = self.temp_dir / "tracking.db"
+        os.environ.update({
+            "DATABASE_PATH": str(self.database),
+            "LOG_DIR": str(self.temp_dir / "logs"),
+            "SESSION_SECRET": "test-session-secret-with-more-than-thirty-two-characters",
+            "SESSION_COOKIE_SECURE": "false",
+            "SESSION_MAX_AGE_SECONDS": "3600",
+            "BOOTSTRAP_ADMIN_USERNAME": "admin",
+            "BOOTSTRAP_ADMIN_PASSWORD_HASH": PasswordHash.recommended().hash("admin-password"),
+            "GMAIL_USER": "alerts@example.test",
+        })
+
+        import app.auth as auth
+        import app.config as config
+        import app.db as db
+        import app.logging_config as logging_config
+        import app.main as main
+        import app.routers.emails as emails
+        import app.routers.security as security
+        import app.routers.tokens as tokens
+        import app.routers.ui as ui
+
+        self.config = importlib.reload(config)
+        self.db = importlib.reload(db)
+        self.logging_config = importlib.reload(logging_config)
+        self.auth = importlib.reload(auth)
+        importlib.reload(tokens)
+        importlib.reload(emails)
+        importlib.reload(security)
+        importlib.reload(ui)
+        self.main = importlib.reload(main)
+        self.logging_config.reset_logging_for_tests()
+        self.logging_config.configure_logging(force=True)
+        self.main.on_startup()
+
+    def tearDown(self):
+        self.logging_config.reset_logging_for_tests()
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def client(self):
+        return httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=self.main.app), base_url="http://testserver"
+        )
+
+    async def login(self, client, username="admin", password="admin-password"):
+        return await client.post("/login", data={"username": username, "password": password}, follow_redirects=False)
+
+    async def csrf(self, client):
+        page = await client.get("/")
+        match = re.search(r'name="csrf_token" value="([^"]+)"', page.text)
+        self.assertIsNotNone(match)
+        return match.group(1)
+
+    def issue_api(self, username: str) -> str:
+        conn = self.db.get_connection()
+        try:
+            row = conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
+        finally:
+            conn.close()
+        return self.auth.issue_api_token(row["id"], "test")[1]
+
+    def test_login_logout_csrf_and_inactive_user(self):
+        async def scenario():
+            async with self.client() as client:
+                failed = await self.login(client, password="wrong")
+                self.assertEqual(failed.status_code, 401)
+                success = await self.login(client)
+                self.assertEqual(success.status_code, 303)
+                self.assertEqual((await client.get("/")).status_code, 200)
+                denied_csrf = await client.post("/logout", data={"csrf_token": "wrong"}, follow_redirects=False)
+                self.assertEqual(denied_csrf.status_code, 403)
+                token = await self.csrf(client)
+                logout = await client.post("/logout", data={"csrf_token": token}, follow_redirects=False)
+                self.assertEqual(logout.status_code, 303)
+                self.assertEqual((await client.get("/", follow_redirects=False)).status_code, 303)
+
+            self.auth.create_user("inactive", "password", "operador")
+            self.auth.update_user(self.user_id("inactive"), "operador", False)
+            async with self.client() as client:
+                self.assertEqual((await self.login(client, "inactive", "password")).status_code, 401)
+
+            self.auth.create_user("session-user", "password", "operador")
+            async with self.client() as client:
+                self.assertEqual((await self.login(client, "session-user", "password")).status_code, 303)
+                self.assertEqual((await client.get("/")).status_code, 200)
+                self.auth.update_user(self.user_id("session-user"), "tecnico", True)
+                self.assertEqual((await client.get("/", follow_redirects=False)).status_code, 303)
+
+        asyncio.run(scenario())
+
+    def user_id(self, username: str) -> int:
+        conn = self.db.get_connection()
+        try:
+            return conn.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()["id"]
+        finally:
+            conn.close()
+
+    def test_public_link_is_read_only_safe_and_revocable(self):
+        async def scenario():
+            bearer = self.issue_api("admin")
+            headers = {"Authorization": f"Bearer {bearer}"}
+            async with self.client() as client:
+                created = await client.post("/tokens", headers=headers, json={
+                    "name": "Registro público", "recipient_email": "recipient@example.test", "alert_email": "alert@example.test",
+                })
+                self.assertEqual(created.status_code, 201)
+                item = created.json()
+                public_path = urlsplit(item["public_url"]).path
+                guest = await client.get(public_path)
+                self.assertEqual(guest.status_code, 200)
+                self.assertEqual(guest.headers["cache-control"], "no-store")
+                self.assertEqual(guest.headers["referrer-policy"], "no-referrer")
+                self.assertEqual(guest.headers["x-robots-tag"], "noindex, nofollow")
+                for secret in (item["token"], "recipient@example.test", "alert@example.test"):
+                    self.assertNotIn(secret, guest.text)
+                self.assertEqual((await client.get("/tokens")).status_code, 401)
+                regenerated = await client.post(f"/tokens/{item['token']}/public-link/regenerate", headers=headers)
+                self.assertEqual(regenerated.status_code, 200)
+                self.assertEqual((await client.get(public_path)).status_code, 404)
+                self.assertEqual((await client.get(urlsplit(regenerated.json()["public_url"]).path)).status_code, 200)
+            log_text = "".join(path.read_text(encoding="utf-8") for path in (self.temp_dir / "logs").glob("*.log"))
+            self.assertNotIn(public_path.rsplit("/", 1)[-1], log_text)
+            self.assertNotIn(bearer, log_text)
+        asyncio.run(scenario())
+
+    def test_bearer_owner_boundaries_and_revocation(self):
+        self.auth.create_user("operator-a", "password", "operador")
+        self.auth.create_user("operator-b", "password", "operador")
+        self.auth.create_user("tech", "password", "tecnico")
+
+        async def scenario():
+            admin_key = self.issue_api("admin")
+            a_key = self.issue_api("operator-a")
+            b_key = self.issue_api("operator-b")
+            tech_key = self.issue_api("tech")
+            async with self.client() as client:
+                a = await client.post("/tokens", headers={"Authorization": f"Bearer {a_key}"}, json={
+                    "name": "A", "owner_user_id": self.user_id("operator-b")
+                })
+                self.assertEqual(a.status_code, 201)
+                self.assertEqual(a.json()["owner_username"], "operator-a")
+                b = await client.post("/tokens", headers={"Authorization": f"Bearer {admin_key}"}, json={
+                    "name": "B", "owner_user_id": self.user_id("operator-b")
+                })
+                self.assertEqual(b.status_code, 201)
+                own_list = await client.get("/tokens", headers={"Authorization": f"Bearer {a_key}"})
+                self.assertEqual([row["name"] for row in own_list.json()], ["A"])
+                forbidden = await client.post(f"/tokens/{b.json()['token']}/mark_external", headers={"Authorization": f"Bearer {a_key}"}, json={})
+                self.assertEqual(forbidden.status_code, 403)
+                tech_allowed = await client.post(f"/tokens/{b.json()['token']}/mark_external", headers={"Authorization": f"Bearer {tech_key}"}, json={})
+                self.assertEqual(tech_allowed.status_code, 200)
+                self.auth.revoke_api_token(self.api_token_id(b_key))
+                self.assertEqual((await client.get("/tokens", headers={"Authorization": f"Bearer {b_key}"})).status_code, 401)
+
+        asyncio.run(scenario())
+
+    def api_token_id(self, raw: str) -> int:
+        conn = self.db.get_connection()
+        try:
+            return conn.execute("SELECT id FROM api_tokens WHERE token_hash=?", (self.auth.token_hash(raw),)).fetchone()["id"]
+        finally:
+            conn.close()
+
+    def test_existing_database_migrates_without_losing_token(self):
+        self.logging_config.reset_logging_for_tests()
+        self.database.unlink()
+        conn = sqlite3.connect(self.database)
+        try:
+            conn.execute("""CREATE TABLE tokens (id INTEGER PRIMARY KEY AUTOINCREMENT, token TEXT UNIQUE NOT NULL, name TEXT NOT NULL, recipient_email TEXT, alert_email TEXT NOT NULL, created_at TEXT NOT NULL, confirmed_at TEXT, external_use_marked_at TEXT, external_use_note TEXT)""")
+            conn.execute("INSERT INTO tokens(token,name,alert_email,created_at) VALUES ('legacy-token','Legado','alert@example.test','2026-01-01')")
+            conn.commit()
+        finally:
+            conn.close()
+        self.db.init_db()
+        self.auth.bootstrap_admin_and_migrate_tokens()
+        conn = self.db.get_connection()
+        try:
+            legacy = conn.execute("SELECT owner_user_id,public_token,public_link_active FROM tokens WHERE token='legacy-token'").fetchone()
+            admin = conn.execute("SELECT id FROM users WHERE username='admin'").fetchone()
+            self.assertEqual(legacy["owner_user_id"], admin["id"])
+            self.assertTrue(legacy["public_token"])
+            self.assertEqual(legacy["public_link_active"], 1)
+        finally:
+            conn.close()
+
