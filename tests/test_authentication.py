@@ -277,6 +277,51 @@ class AuthenticationTests(unittest.TestCase):
 
         asyncio.run(scenario())
 
+    def test_admin_and_technician_can_switch_between_own_and_all_tokens_in_ui(self):
+        self.auth.create_user("operator", "password", "operador")
+        self.auth.create_user("tech", "password", "tecnico")
+
+        async def scenario():
+            admin_key = self.issue_api("admin")
+            tech_key = self.issue_api("tech")
+            async with self.client() as client:
+                self.assertEqual(
+                    (await client.post("/tokens", headers={"Authorization": f"Bearer {admin_key}"}, json={"name": "Token do admin"})).status_code,
+                    201,
+                )
+                self.assertEqual(
+                    (await client.post("/tokens", headers={"Authorization": f"Bearer {admin_key}"}, json={"name": "Token do operador", "owner_user_id": self.user_id("operator")})).status_code,
+                    201,
+                )
+                self.assertEqual(
+                    (await client.post("/tokens", headers={"Authorization": f"Bearer {tech_key}"}, json={"name": "Token do técnico"})).status_code,
+                    201,
+                )
+
+            async with self.client() as admin_client:
+                self.assertEqual((await self.login(admin_client)).status_code, 303)
+                mine = await admin_client.get("/")
+                self.assertIn("Meus tokens", mine.text)
+                self.assertIn("Token do admin", mine.text)
+                self.assertNotIn("Token do operador", mine.text)
+                all_tokens = await admin_client.get("/?scope=all")
+                self.assertIn("Token do admin", all_tokens.text)
+                self.assertIn("Token do operador", all_tokens.text)
+                self.assertIn("Token do técnico", all_tokens.text)
+
+            async with self.client() as tech_client:
+                self.assertEqual((await self.login(tech_client, "tech", "password")).status_code, 303)
+                mine = await tech_client.get("/")
+                self.assertIn("Meus tokens", mine.text)
+                self.assertIn("Token do técnico", mine.text)
+                self.assertNotIn("Token do admin", mine.text)
+                all_tokens = await tech_client.get("/?scope=all")
+                self.assertIn("Token do admin", all_tokens.text)
+                self.assertIn("Token do operador", all_tokens.text)
+                self.assertIn("Token do técnico", all_tokens.text)
+
+        asyncio.run(scenario())
+
     def api_token_id(self, raw: str) -> int:
         conn = self.db.get_connection()
         try:

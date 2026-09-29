@@ -88,14 +88,17 @@ def ui_tokens_list(request: Request, conn: sqlite3.Connection = Depends(connecti
     if per_page not in PER_PAGE_OPTIONS: per_page = 25
     try: page = max(1, int(request.query_params.get("page", "1")))
     except ValueError: page = 1
-    owner_id = None if user.can_manage_all_tokens else user.id
+    scope = request.query_params.get("scope", "mine")
+    if scope not in {"mine", "all"} or not user.can_manage_all_tokens:
+        scope = "mine"
+    owner_id = None if scope == "all" else user.id
     total = token_status.count_tokens(conn, owner_id, search=search or None, usage_status=usage_status or None)
     total_pages = max(1, (total + per_page - 1) // per_page)
     page = min(page, total_pages)
     rows = token_status.list_tokens(conn, owner_id, search=search or None, usage_status=usage_status or None, limit=per_page, offset=(page - 1) * per_page)
-    query_base = urlencode({"q": search, "status": usage_status, "per_page": per_page})
+    query_base = urlencode({"q": search, "status": usage_status, "scope": scope, "per_page": per_page})
     page_numbers = range(max(1, page - 2), min(total_pages, page + 2) + 1)
-    return templates.TemplateResponse(request, "tokens_list.html", ctx(request, user, tokens=rows, search=search, selected_status=usage_status, per_page=per_page, per_page_options=PER_PAGE_OPTIONS, page=page, total_pages=total_pages, total=total, query_base=query_base, page_numbers=page_numbers))
+    return templates.TemplateResponse(request, "tokens_list.html", ctx(request, user, tokens=rows, search=search, selected_status=usage_status, selected_scope=scope, per_page=per_page, per_page_options=PER_PAGE_OPTIONS, page=page, total_pages=total_pages, total=total, query_base=query_base, page_numbers=page_numbers))
 
 
 @router.get("/ui/account", response_class=HTMLResponse)
