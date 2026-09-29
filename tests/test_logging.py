@@ -33,7 +33,7 @@ def _flush_logs() -> None:
                 seen.add(id(handler))
 
 
-async def _request(*, raises: bool = False):
+async def _request(*, raises: bool = False, user_agent: bytes = b"agente-de-teste"):
     sent: list[dict] = []
 
     async def endpoint(scope, receive, send):
@@ -67,7 +67,7 @@ async def _request(*, raises: bool = False):
         "query_string": b"password=senha-super-secreta",
         "root_path": "",
         "headers": [
-            (b"user-agent", b"agente-de-teste"),
+            (b"user-agent", user_agent),
             (b"authorization", b"Bearer chave-super-secreta"),
             (b"cookie", b"session=cookie-super-secreto"),
         ],
@@ -192,6 +192,24 @@ class LoggingTests(unittest.TestCase):
         self.assertIn("actor=pablo", line)
         self.assertRegex(line, r"target_id=sha256:[0-9a-f]{12}")
         self.assertNotIn(raw_token, line)
+
+    def test_credentials_in_loggable_fields_are_redacted(self):
+        access_path, app_path = self.configure()
+        user_agent_secret = "epat_user_agent_secret_value"
+        audit_actor_secret = "epat_audit_actor_secret_value"
+
+        asyncio.run(
+            _request(user_agent=f"cliente Bearer {user_agent_secret}".encode())
+        )
+        audit_event("login_failed", actor=audit_actor_secret, action="login", outcome="denied")
+        _flush_logs()
+
+        combined = access_path.read_text(encoding="utf-8") + app_path.read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn(user_agent_secret, combined)
+        self.assertNotIn(audit_actor_secret, combined)
+        self.assertIn("[redacted]", combined)
 
     @unittest.skipUnless(os.name == "posix", "permissões POSIX só existem no Linux")
     def test_log_permissions_are_restricted_on_posix(self):

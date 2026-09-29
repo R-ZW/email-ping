@@ -9,7 +9,7 @@ import uuid
 from http import HTTPStatus
 from typing import Any
 
-from app.logging_config import ACCESS_LOGGER_NAME, APP_LOGGER_NAME
+from app.logging_config import ACCESS_LOGGER_NAME, APP_LOGGER_NAME, redact_sensitive_text
 
 
 class AccessLogMiddleware:
@@ -122,7 +122,9 @@ def _status_phrase(status_code: int) -> str:
 def _header(scope: dict, name: bytes) -> str | None:
     for header_name, value in scope.get("headers", []):
         if header_name.lower() == name:
-            return value.decode("latin-1", errors="replace")[:512]
+            return redact_sensitive_text(
+                value.decode("latin-1", errors="replace")[:512]
+            )
     return None
 
 

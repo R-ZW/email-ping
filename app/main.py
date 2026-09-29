@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.auth import bootstrap_admin_and_migrate_tokens
+from app.auth import bootstrap_admin_and_migrate_tokens, validate_auth_configuration
 from app.config import BASE_DIR, SESSION_COOKIE_SECURE, SESSION_MAX_AGE_SECONDS, SESSION_SECRET
 from app.db import init_db
 from app.logging_config import APP_LOGGER_NAME, configure_logging
@@ -14,10 +14,11 @@ from app.routers import security
 
 configure_logging()
 logger = logging.getLogger(APP_LOGGER_NAME)
+validate_auth_configuration()
 
 app = FastAPI(title="Email Tracker", docs_url=None, redoc_url=None, openapi_url=None)
 app.add_middleware(AccessLogMiddleware)
-app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET or "invalid-unconfigured-secret", max_age=SESSION_MAX_AGE_SECONDS, same_site="lax", https_only=SESSION_COOKIE_SECURE)
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, max_age=SESSION_MAX_AGE_SECONDS, same_site="lax", https_only=SESSION_COOKIE_SECURE)
 
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "app" / "static")), name="static")
 

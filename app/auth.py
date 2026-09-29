@@ -51,6 +51,13 @@ def validate_auth_configuration() -> None:
         raise RuntimeError("SESSION_SECRET ausente ou curto demais (mínimo de 32 caracteres).")
 
 
+def _validate_bootstrap_password_hash(password_hash: str) -> None:
+    try:
+        PASSWORD_HASHER.verify("configuration-validation", password_hash)
+    except Exception as exc:
+        raise RuntimeError("BOOTSTRAP_ADMIN_PASSWORD_HASH deve ser um hash Argon2 válido.") from exc
+
+
 def bootstrap_admin_and_migrate_tokens() -> None:
     """Cria o primeiro admin e atribui dados legados de forma idempotente."""
     validate_auth_configuration()
@@ -62,8 +69,7 @@ def bootstrap_admin_and_migrate_tokens() -> None:
                 raise RuntimeError(
                     "Defina BOOTSTRAP_ADMIN_USERNAME e BOOTSTRAP_ADMIN_PASSWORD_HASH para criar o primeiro administrador."
                 )
-            if not BOOTSTRAP_ADMIN_PASSWORD_HASH.startswith("$argon2"):
-                raise RuntimeError("BOOTSTRAP_ADMIN_PASSWORD_HASH deve ser um hash Argon2.")
+            _validate_bootstrap_password_hash(BOOTSTRAP_ADMIN_PASSWORD_HASH)
             created = now_iso()
             conn.execute(
                 """INSERT INTO users(username, password_hash, role, is_active, created_at, updated_at)
@@ -168,6 +174,7 @@ def require_api_user(request: Request) -> CurrentUser:
     header = request.headers.get("authorization", "")
     scheme, _, raw_token = header.partition(" ")
     if scheme.lower() != "bearer" or not raw_token:
+        _audit_api_auth_failure(request)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bearer token obrigatório.")
     conn = get_connection()
     try:
@@ -178,14 +185,27 @@ def require_api_user(request: Request) -> CurrentUser:
             (digest,),
         ).fetchone()
         if row is None or not hmac.compare_digest(row["api_token_hash"], digest):
+            _audit_api_auth_failure(request)
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Bearer token inválido.")
         user = row_to_user(row)
         if not user.is_active:
+            _audit_api_auth_failure(request)
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário inativo.")
         request.state.authenticated_user = user.username
         return user
     finally:
         conn.close()
+
+
+def _audit_api_auth_failure(request: Request) -> None:
+    audit_event(
+        "api_auth_failed",
+        actor="anonymous",
+        client_ip=request.client.host if request.client else None,
+        action="authenticate_api",
+        outcome="denied",
+        request_id=getattr(request.state, "request_id", None),
+    )
 
 
 def require_admin(user: CurrentUser) -> None:
@@ -233,7 +253,14 @@ def csrf_token(request: Request) -> str:
 
 def verify_csrf(request: Request, supplied: str) -> None:
     expected = request.session.get("csrf_token")
-    if not isinstance(expected, str) or not hmac.compare_digest(expected, supplied):
+    valid = (
+        isinstance(expected, str)
+        and isinstance(supplied, str)
+        and expected.isascii()
+        and supplied.isascii()
+        and hmac.compare_digest(expected, supplied)
+    )
+    if not valid:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Token CSRF inválido.")
 
 

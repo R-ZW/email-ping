@@ -116,6 +116,63 @@ class AuthenticationTests(unittest.TestCase):
 
         asyncio.run(scenario())
 
+    def test_session_mutations_reject_invalid_csrf_tokens(self):
+        async def scenario():
+            async with self.client() as client:
+                self.assertEqual((await self.login(client)).status_code, 303)
+                created = await client.post(
+                    "/ui/new",
+                    data={"name": "Não deve ser criado", "csrf_token": "inválido"},
+                )
+                self.assertEqual(created.status_code, 403)
+                new_user = await client.post(
+                    "/ui/users",
+                    data={
+                        "username": "não-deve-existir",
+                        "password": "senha-segura",
+                        "role": "operador",
+                        "csrf_token": "inválido",
+                    },
+                )
+                self.assertEqual(new_user.status_code, 403)
+
+            conn = self.db.get_connection()
+            try:
+                self.assertIsNone(
+                    conn.execute(
+                        "SELECT 1 FROM users WHERE username='não-deve-existir'"
+                    ).fetchone()
+                )
+                self.assertEqual(
+                    conn.execute("SELECT COUNT(*) FROM tokens").fetchone()[0], 0
+                )
+            finally:
+                conn.close()
+
+        asyncio.run(scenario())
+
+    def test_restart_and_missing_session_secret_configuration(self):
+        self.main.on_shutdown()
+        self.main.on_startup()
+        self.assertEqual(self.user_id("admin"), 1)
+
+        original_secret = os.environ["SESSION_SECRET"]
+        try:
+            os.environ["SESSION_SECRET"] = ""
+            importlib.reload(self.config)
+            importlib.reload(self.auth)
+            with self.assertRaisesRegex(RuntimeError, "SESSION_SECRET ausente"):
+                importlib.reload(self.main)
+        finally:
+            os.environ["SESSION_SECRET"] = original_secret
+            self.config = importlib.reload(self.config)
+            self.auth = importlib.reload(self.auth)
+            self.main = importlib.reload(self.main)
+
+    def test_invalid_bootstrap_password_hash_is_rejected(self):
+        with self.assertRaisesRegex(RuntimeError, "Argon2 válido"):
+            self.auth._validate_bootstrap_password_hash("not-an-argon2-hash")
+
     def test_account_can_update_name_and_personal_smtp_settings(self):
         self.auth.create_user("sender", "password", "operador")
 
@@ -283,6 +340,18 @@ class AuthenticationTests(unittest.TestCase):
                 self.assertEqual(tech_allowed.status_code, 200)
                 self.auth.revoke_api_token(self.api_token_id(b_key))
                 self.assertEqual((await client.get("/tokens", headers={"Authorization": f"Bearer {b_key}"})).status_code, 401)
+                invalid_key = "epat_invalid_bearer_token_for_audit"
+                self.assertEqual(
+                    (await client.get("/tokens", headers={"Authorization": f"Bearer {invalid_key}"})).status_code,
+                    401,
+                )
+
+            log_text = "".join(
+                path.read_text(encoding="utf-8")
+                for path in (self.temp_dir / "logs").glob("*.log")
+            )
+            self.assertIn("event=api_auth_failed", log_text)
+            self.assertNotIn(invalid_key, log_text)
 
         asyncio.run(scenario())
 

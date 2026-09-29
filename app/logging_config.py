@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -18,6 +19,17 @@ APP_LOGGER_NAME = "email_ping.app"
 
 _MANAGED_HANDLER_ATTR = "_email_ping_managed_handler"
 _configured = False
+
+_SENSITIVE_VALUE_PATTERNS = (
+    re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]+"),
+    re.compile(r"\bepat_[A-Za-z0-9_-]+\b"),
+    re.compile(
+        r"(?i)\b(?:password|cookie|authorization|csrf(?:_token)?|api[_-]?key|token)\s*[=:]\s*[^\s,;]+"
+    ),
+)
+_SENSITIVE_FIELD_NAMES = frozenset(
+    {"password", "cookie", "authorization", "csrf_token", "api_token", "api_key"}
+)
 
 
 class PlainTextFormatter(logging.Formatter):
@@ -43,7 +55,8 @@ class PlainTextFormatter(logging.Formatter):
                 continue
             if key == "event" and value == "log":
                 continue
-            fields.append(f"{key}={_format_value(value)}")
+            safe_value = "[redacted]" if key.lower() in _SENSITIVE_FIELD_NAMES else redact_sensitive_text(value)
+            fields.append(f"{key}={_format_value(safe_value)}")
         if fields:
             line += " " + " ".join(fields)
         if record.exc_info:
@@ -85,6 +98,16 @@ class SecureRotatingFileHandler(RotatingFileHandler):
 
 def _single_line(value: Any) -> str:
     return str(value).replace("\r", "\\r").replace("\n", "\\n")
+
+
+def redact_sensitive_text(value: Any) -> Any:
+    """Redige credenciais mesmo quando forem incluídas em campos registráveis."""
+    if not isinstance(value, str):
+        return value
+    redacted = value
+    for pattern in _SENSITIVE_VALUE_PATTERNS:
+        redacted = pattern.sub("[redacted]", redacted)
+    return redacted
 
 
 def _format_value(value: Any) -> str:
@@ -251,7 +274,7 @@ def audit_event(
         "audit event",
         extra={
             "event": event,
-            "actor": actor or "anonymous",
+            "actor": redact_sensitive_text(actor or "anonymous"),
             "actor_role": actor_role,
             "client_ip": client_ip,
             "action": action,
