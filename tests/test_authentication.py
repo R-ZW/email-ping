@@ -189,6 +189,15 @@ class AuthenticationTests(unittest.TestCase):
 
             async with self.client() as admin_client:
                 self.assertEqual((await self.login(admin_client)).status_code, 303)
+                users_page = await admin_client.get("/ui/users")
+                reset_action = f'action="/ui/users/{self.user_id("password-user")}/password"'
+                self.assertIn(reset_action, users_page.text)
+                reset_form = re.search(
+                    rf'<form method="post" action="/ui/users/{self.user_id("password-user")}/password"[^>]*>',
+                    users_page.text,
+                )
+                self.assertIsNotNone(reset_form)
+                self.assertNotIn("data-confirm", reset_form.group(0))
                 csrf = await self.csrf(admin_client)
                 reset = await admin_client.post(
                     f"/ui/users/{self.user_id('password-user')}/password",
