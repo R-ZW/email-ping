@@ -4,21 +4,6 @@ Aplicação interna para criar tokens de rastreamento de e-mail, enviar mensagen
 e consultar aberturas. Ela possui autenticação por função, sessões assinadas,
 API com Bearer token, links públicos por posse e logs persistentes.
 
-## Quick Start
-
-### 1️⃣ Ativar o venv
-```
-# windows
-(Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned) ; (& .venv\Scripts\Activate.ps1)
-
-# macos/linux
-source .venv/bin/activate
-```
-
-### 2️⃣ Subir o servidor
-```
-uvicorn server:app --host 0.0.0.0 --port 8000
-```
 
 ## Instalação e atualização
 
@@ -233,3 +218,20 @@ por GET; ela não exclui nem edita dados administrativos.
 6. Faça login, emita ou valide um Bearer token e execute uma criação de token.
 7. Verifique `logs/access.log` e `logs/app.log` e mantenha permissões restritas
    sobre ambos.
+
+
+## Quick Start
+
+### 1️⃣ Ativar o venv
+```
+# windows
+(Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned) ; (& .venv\Scripts\Activate.ps1)
+
+# macos/linux
+source .venv/bin/activate
+```
+
+### 2️⃣ Subir o servidor
+```
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
