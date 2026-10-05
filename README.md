@@ -4,6 +4,22 @@ Aplicação interna para criar tokens de rastreamento de e-mail, enviar mensagen
 e consultar aberturas. Ela possui autenticação por função, sessões assinadas,
 API com Bearer token, links públicos por posse e logs persistentes.
 
+## Quick Start
+
+### 1️⃣ Ativar o venv
+```
+# windows
+(Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned) ; (& .venv\Scripts\Activate.ps1)
+
+# macos/linux
+source .venv/bin/activate
+```
+
+### 2️⃣ Subir o servidor
+```
+uvicorn server:app --host 0.0.0.0 --port 8000
+```
+
 ## Instalação e atualização
 
 O projeto usa Python 3.14+ e [uv](https://docs.astral.sh/uv/).
